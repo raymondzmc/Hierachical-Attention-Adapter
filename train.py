@@ -1,305 +1,226 @@
+# This is a modified version of TRL's `SFTTrainer` example (https://github.com/huggingface/trl/blob/main/examples/scripts/sft_trainer.py), 
+# adapted to run with DeepSpeed ZeRO-3 and Mistral-7B-V1.0. The settings below were run on 1 node of 8 x A100 (80GB) GPUs.
+#
+# Usage:
+#   - Install the latest transformers & accelerate versions: `pip install -U transformers accelerate`
+#   - Install deepspeed: `pip install deepspeed==0.9.5`
+#   - Install TRL from main: pip install git+https://github.com/huggingface/trl.git
+#   - Clone the repo: git clone github.com/huggingface/trl.git
+#   - Copy this Gist into trl/examples/scripts
+#   - Run from root of trl repo with: accelerate launch --config_file=examples/accelerate_configs/deepspeed_zero3.yaml --gradient_accumulation_steps 8 examples/scripts/sft_trainer.py  
+
+
 import gc
 import os
-import sys
-import threading
-
-import numpy as np
-import psutil
 import torch
-from accelerate import Accelerator
-from datasets import load_dataset
-from torch.utils.data import DataLoader
+from typing import Optional, Callable
+from dataclasses import dataclass, field
+from transformers.modeling_utils import unwrap_model
+from accelerate import Accelerator, dispatch_model, infer_auto_device_map, load_checkpoint_and_dispatch
+from accelerate.utils import get_balanced_memory
+from peft import LoraConfig, TaskType, get_peft_model
 from tqdm import tqdm
 from transformers import (
-    AutoModelForCausalLM,
+    AutoModelForCausalLM, 
+    HfArgumentParser,
+    Seq2SeqTrainingArguments, 
     AutoTokenizer,
-    default_data_collator,
-    get_linear_schedule_with_warmup,
-    set_seed,
+    DataCollatorForSeq2Seq,
+    GenerationConfig,
+    BitsAndBytesConfig,
 )
+import evaluate
 
-from peft import LoraConfig, TaskType, get_peft_model
-from arg_parser im
-from datasets import get_preprocessed_samsum
+import numpy as np
+from seq2seq_trainer import Seq2SeqTrainer
+from data import get_preprocessed_samsum, get_preprocessed_summscreen
+from datasets import Dataset
+import pdb
+import nltk
 
+nltk.download('punkt')
+tqdm.pandas()
 
-def levenshtein_distance(str1, str2):
-    # TC: O(N^2)
-    # SC: O(N^2)
-    if str1 == str2:
-        return 0
-    num_rows = len(str1) + 1
-    num_cols = len(str2) + 1
-    dp_matrix = np.empty((num_rows, num_cols))
-    dp_matrix[0, :] = range(num_cols)
-    dp_matrix[:, 0] = range(num_rows)
+SUPPORTED_DATASETS = ['samsum', 'summscreen']
 
-    for i in range(1, num_rows):
-        for j in range(1, num_cols):
-            if str1[i - 1] == str2[j - 1]:
-                dp_matrix[i, j] = dp_matrix[i - 1, j - 1]
-            else:
-                dp_matrix[i, j] = min(dp_matrix[i - 1, j - 1], dp_matrix[i - 1, j], dp_matrix[i, j - 1]) + 1
-
-    return dp_matrix[num_rows - 1, num_cols - 1]
-
-
-def get_closest_label(eval_pred, classes):
-    min_id = sys.maxsize
-    min_edit_distance = sys.maxsize
-    for i, class_label in enumerate(classes):
-        edit_distance = levenshtein_distance(eval_pred.strip(), class_label)
-        if edit_distance < min_edit_distance:
-            min_id = i
-            min_edit_distance = edit_distance
-    return classes[min_id]
-
-
-# Converting Bytes to Megabytes
-def b2mb(x):
-    return int(x / 2**20)
-
-
-# This context manager is used to track the peak memory usage of the process
-class TorchTracemalloc:
-    def __enter__(self):
-        gc.collect()
-        torch.cuda.empty_cache()
-        torch.cuda.reset_max_memory_allocated()  # reset the peak gauge to zero
-        self.begin = torch.cuda.memory_allocated()
-        self.process = psutil.Process()
-
-        self.cpu_begin = self.cpu_mem_used()
-        self.peak_monitoring = True
-        peak_monitor_thread = threading.Thread(target=self.peak_monitor_func)
-        peak_monitor_thread.daemon = True
-        peak_monitor_thread.start()
-        return self
-
-    def cpu_mem_used(self):
-        """get resident set size memory for the current process"""
-        return self.process.memory_info().rss
-
-    def peak_monitor_func(self):
-        self.cpu_peak = -1
-
-        while True:
-            self.cpu_peak = max(self.cpu_mem_used(), self.cpu_peak)
-
-            # can't sleep or will not catch the peak right (this comment is here on purpose)
-            # time.sleep(0.001) # 1msec
-            if not self.peak_monitoring:
-                break
-
-    def __exit__(self, *exc):
-        self.peak_monitoring = False
-
-        gc.collect()
-        torch.cuda.empty_cache()
-        self.end = torch.cuda.memory_allocated()
-        self.peak = torch.cuda.max_memory_allocated()
-        self.used = b2mb(self.end - self.begin)
-        self.peaked = b2mb(self.peak - self.begin)
-
-        self.cpu_end = self.cpu_mem_used()
-        self.cpu_used = b2mb(self.cpu_end - self.cpu_begin)
-        self.cpu_peaked = b2mb(self.cpu_peak - self.cpu_begin)
-        # print(f"delta used/peak {self.used:4d}/{self.peaked:4d}")
-
-
-def main():
-    accelerator = Accelerator()
-    model_name_or_path = "mistralai/Mistral-7B-v0.1"
-    dataset_name = "samsum_dataset"
-    text_column = "dialogue"
-    label_column = "summary"
-    lr = 1e-4
-    num_epochs = 3
-    batch_size = 8
-    seed = 42
-    max_length = 4096
-    do_test = True
-    use_peft = True
-    set_seed(seed)
-    
-    tokenizer = AutoTokenizer.from_pretrained(model_name_or_path)
-    
-    with accelerator.main_process_first():
-        train_dataset = get_preprocessed_samsum(tokenizer, 'train')
-        eval_dataset = get_preprocessed_samsum(tokenizer, 'validation')
-        test_dataset = get_preprocessed_samsum(tokenizer, 'test')
-    accelerator.wait_for_everyone()
-   
-    train_dataloader = DataLoader(
-        train_dataset, shuffle=True, collate_fn=default_data_collator, batch_size=batch_size, pin_memory=True
+# Define and parse arguments.
+@dataclass
+class ScriptArguments:
+    """
+    The name of the Casual LM model we wish to fine with SFTTrainer
+    """
+    seed: Optional[int] = field(default=42)
+    model_name: Optional[str] = field(default="mistralai/Mistral-7B-v0.1", metadata={"help": "the model name"})
+    dataset_name: Optional[str] = field(
+        default='samsum', metadata={"help": "the dataset name", "choices": SUPPORTED_DATASETS}
     )
-    eval_dataloader = DataLoader(
-        eval_dataset, collate_fn=default_data_collator, batch_size=batch_size, pin_memory=True
-    )
-    test_dataloader = DataLoader(
-        test_dataset, collate_fn=default_data_collator, batch_size=batch_size, pin_memory=True
-    )
-
-    print(next(iter(train_dataloader)))
-
-    # creating model
-    model = AutoModelForCausalLM.from_pretrained(model_name_or_path)
+    # do_train: Optional[bool] = field(default=True, metadata={"help": "use 'wandb' to log with wandb"})
     
-    if use_peft:
+    report_to: Optional[str] = field(default="none", metadata={"help": "use 'wandb' to log with wandb"})
+    optim: Optional[str] = field(default="adamw_torch", metadata={"help": "The optimizer to use"})
+    group_by_length: Optional[bool] = field(default=True, metadata={"help": "Whether or not to group together samples of roughly the same length in the training dataset"})
+    learning_rate: Optional[float] = field(default=1e-4, metadata={"help": "the learning rate"})
+    lr_scheduler_type: Optional[str] = field(default='linear')
+    warmup_ratio: Optional[float] = field(default=0.1)
+    batch_size: Optional[int] = field(default=2, metadata={"help": "the batch size for training"})
+    eval_batch_size: Optional[int] = field(default=2, metadata={"help": "the batch size for evaluation"})
+    gradient_checkpointing: Optional[bool] = field(default=False, metadata={"help": "Use gradient checkpointing to save memory at the expense of slower backward pass."})
+    gradient_accumulation_steps: Optional[int] = field(
+        default=16, metadata={"help": "the number of gradient accumulation steps"}
+    )
+    load_in_8bit: Optional[bool] = field(default=False, metadata={"help": "load the model in 8 bits precision"})
+    load_in_4bit: Optional[bool] = field(default=False, metadata={"help": "load the model in 4 bits precision"})
+    use_peft: Optional[bool] = field(default=True, metadata={"help": "Wether to use PEFT or not to train adapters"})
+    trust_remote_code: Optional[bool] = field(default=False, metadata={"help": "Enable `trust_remote_code`"})
+    output_dir: Optional[str] = field(default="output", metadata={"help": "the output directory"})
+    logging_steps: Optional[int] = field(default=5, metadata={"help": "the number of logging steps"})
+    num_train_epochs: Optional[int] = field(default=3, metadata={"help": "the number of training epochs"})
+    evaluation_strategy: Optional[str] = field(default='epoch', metadata={"help": "The evaluation strategy to adopt during training."})
+    save_strategy: Optional[str] = field(default='epoch', metadata={"help": "The checkpoint save strategy to adopt during training."})
+    push_to_hub: Optional[bool] = field(default=False, metadata={"help": "Push the model to HF Hub"})
+    hub_model_id: Optional[str] = field(default="mistral-7b-finetuned-summarization", metadata={"help": "The name of the model on HF Hub"})
+
+def peft_module_casting_to_f16(model):
+    from peft.tuners.tuners_utils import BaseTunerLayer
+
+    for name, module in model.named_modules():
+        if isinstance(module, BaseTunerLayer):
+            module = module.to(torch.float16)
+        if any(x in name for x in ["lm_head", "embed_tokens", "wte", "wpe"]):
+            if hasattr(module, "weight"):
+                if module.weight.dtype == torch.float32:
+                    module = module.to(torch.float16)
+
+def init_trainer(script_args: ScriptArguments,
+                 train_dataset: Optional[Dataset] = None,
+                 eval_dataset: Optional[Dataset] = None,
+                 compute_metrics: Optional[Callable] = None,
+                 data_collator: Optional[Callable] = None):
+    if script_args.load_in_8bit and script_args.load_in_4bit:
+        raise ValueError("You can't load the model in 8 bits and 4 bits at the same time")
+    elif script_args.load_in_8bit or script_args.load_in_4bit:
+        quantization_config = BitsAndBytesConfig(
+            load_in_8bit=script_args.load_in_8bit, load_in_4bit=script_args.load_in_4bit
+        )
+        # Copy the model to each device
+        device_map = {"": Accelerator().local_process_index}
+        torch_dtype = torch.float16
+    else:
+        device_map = None
+        quantization_config = None
+        torch_dtype = torch.float16
+    
+    model = AutoModelForCausalLM.from_pretrained(
+        script_args.model_name,
+        quantization_config=quantization_config,
+        device_map=device_map,
+        trust_remote_code=script_args.trust_remote_code,
+        torch_dtype=torch_dtype,
+        attn_implementation="flash_attention_2",
+    )
+    if script_args.use_peft:
+        model.enable_input_require_grads()
         peft_config = LoraConfig(task_type=TaskType.CAUSAL_LM, inference_mode=False, r=8, lora_alpha=32, lora_dropout=0.1)
         model = get_peft_model(model, peft_config)
         model.print_trainable_parameters()
-
-    # optimizer
-    optimizer = torch.optim.AdamW(model.parameters(), lr=lr)
-
-    # lr scheduler
-    lr_scheduler = get_linear_schedule_with_warmup(
-        optimizer=optimizer,
-        num_warmup_steps=0,
-        num_training_steps=(len(train_dataloader) * num_epochs),
+    
+    generation_config = GenerationConfig(
+        max_new_tokens=200,
+        do_sample=False,
+        num_beams=1,
+        eos_token_id=tokenizer.eos_token_id,
+        pad_token_id=tokenizer.eos_token_id,
     )
 
-    model, train_dataloader, eval_dataloader, test_dataloader, optimizer, lr_scheduler = accelerator.prepare(
-        model, train_dataloader, eval_dataloader, test_dataloader, optimizer, lr_scheduler
+    # Step 3: Define the training arguments
+    training_args = Seq2SeqTrainingArguments(
+        output_dir=script_args.output_dir,
+        per_device_train_batch_size=script_args.batch_size,
+        per_device_eval_batch_size=script_args.eval_batch_size,
+        gradient_accumulation_steps=script_args.gradient_accumulation_steps,
+        gradient_checkpointing=True,
+        learning_rate=script_args.learning_rate,
+        lr_scheduler_type=script_args.lr_scheduler_type,
+        warmup_ratio=script_args.warmup_ratio,
+        logging_steps=script_args.logging_steps,
+        num_train_epochs=script_args.num_train_epochs,
+        report_to=script_args.report_to,
+        save_strategy=script_args.save_strategy,
+        evaluation_strategy=script_args.evaluation_strategy,
+        push_to_hub=script_args.push_to_hub,
+        hub_model_id=script_args.hub_model_id,
+        fp16=True,
+        fp16_full_eval=True,
+        logging_first_step=True,
+        generation_config=generation_config,
+        predict_with_generate=True,
+        load_best_model_at_end=True,
     )
-    accelerator.print(model)
-
-    is_ds_zero_3 = False
-    if getattr(accelerator.state, "deepspeed_plugin", None):
-        is_ds_zero_3 = accelerator.state.deepspeed_plugin.zero_stage == 3
-
-    for epoch in range(num_epochs):
-        with TorchTracemalloc() as tracemalloc:
-            model.train()
-            total_loss = 0
-            for step, batch in enumerate(tqdm(train_dataloader)):
-                outputs = model(**batch)
-                loss = outputs.loss
-                total_loss += loss.detach().float()
-                accelerator.backward(loss)
-                optimizer.step()
-                lr_scheduler.step()
-                optimizer.zero_grad()
-        # Printing the GPU memory usage details such as allocated memory, peak memory, and total memory usage
-        accelerator.print("GPU Memory before entering the train : {}".format(b2mb(tracemalloc.begin)))
-        accelerator.print("GPU Memory consumed at the end of the train (end-begin): {}".format(tracemalloc.used))
-        accelerator.print("GPU Peak Memory consumed during the train (max-begin): {}".format(tracemalloc.peaked))
-        accelerator.print(
-            "GPU Total Peak Memory consumed during the train (max): {}".format(
-                tracemalloc.peaked + b2mb(tracemalloc.begin)
-            )
-        )
-
-        accelerator.print("CPU Memory before entering the train : {}".format(b2mb(tracemalloc.cpu_begin)))
-        accelerator.print("CPU Memory consumed at the end of the train (end-begin): {}".format(tracemalloc.cpu_used))
-        accelerator.print("CPU Peak Memory consumed during the train (max-begin): {}".format(tracemalloc.cpu_peaked))
-        accelerator.print(
-            "CPU Total Peak Memory consumed during the train (max): {}".format(
-                tracemalloc.cpu_peaked + b2mb(tracemalloc.cpu_begin)
-            )
-        )
-        train_epoch_loss = total_loss / len(train_dataloader)
-        train_ppl = torch.exp(train_epoch_loss)
-        accelerator.print(f"{epoch=}: {train_ppl=} {train_epoch_loss=}")
-        
-        accelerator.wait_for_everyone()
-
-        model.eval()
-        eval_preds = []
-        with TorchTracemalloc() as tracemalloc:
-            for _, batch in enumerate(tqdm(eval_dataloader)):
-                batch = {k: v for k, v in batch.items() if k != "labels"}
-                with torch.no_grad():
-                    outputs = accelerator.unwrap_model(model).generate(
-                        **batch, synced_gpus=is_ds_zero_3, max_new_tokens=10
-                    )  # synced_gpus=True for DS-stage 3
-                outputs = accelerator.pad_across_processes(outputs, dim=1, pad_index=tokenizer.pad_token_id)
-                preds = accelerator.gather_for_metrics(outputs)
-                preds = preds[:, max_length:].detach().cpu().numpy()
-                eval_preds.extend(tokenizer.batch_decode(preds, skip_special_tokens=True))
-
-        # Printing the GPU memory usage details such as allocated memory, peak memory, and total memory usage
-        accelerator.print("GPU Memory before entering the eval : {}".format(b2mb(tracemalloc.begin)))
-        accelerator.print("GPU Memory consumed at the end of the eval (end-begin): {}".format(tracemalloc.used))
-        accelerator.print("GPU Peak Memory consumed during the eval (max-begin): {}".format(tracemalloc.peaked))
-        accelerator.print(
-            "GPU Total Peak Memory consumed during the eval (max): {}".format(
-                tracemalloc.peaked + b2mb(tracemalloc.begin)
-            )
-        )
-
-        accelerator.print("CPU Memory before entering the eval : {}".format(b2mb(tracemalloc.cpu_begin)))
-        accelerator.print("CPU Memory consumed at the end of the eval (end-begin): {}".format(tracemalloc.cpu_used))
-        accelerator.print("CPU Peak Memory consumed during the eval (max-begin): {}".format(tracemalloc.cpu_peaked))
-        accelerator.print(
-            "CPU Total Peak Memory consumed during the eval (max): {}".format(
-                tracemalloc.cpu_peaked + b2mb(tracemalloc.cpu_begin)
-            )
-        )
-
-        # correct = 0
-        # total = 0
-        # assert len(eval_preds) == len(
-        #     dataset["train"][label_column]
-        # ), f"{len(eval_preds)} != {len(dataset['train'][label_column])}"
-        # for pred, true in zip(eval_preds, dataset["train"][label_column]):
-        #     if pred.strip() == true.strip():
-        #         correct += 1
-        #     total += 1
-        # accuracy = correct / total * 100
-        # accelerator.print(f"{accuracy=}")
-        # accelerator.print(f"{eval_preds[:10]=}")
-        # accelerator.print(f"{dataset['train'][label_column][:10]=}")
-
-    if do_test:
-        model.eval()
-        test_preds = []
-        for _, batch in enumerate(tqdm(test_dataloader)):
-            batch = {k: v for k, v in batch.items() if k != "labels"}
-            with torch.no_grad():
-                outputs = accelerator.unwrap_model(model).generate(
-                    **batch, synced_gpus=is_ds_zero_3, max_new_tokens=10
-                )  # synced_gpus=True for DS-stage 3
-            outputs = accelerator.pad_across_processes(outputs, dim=1, pad_index=tokenizer.pad_token_id)
-            preds = accelerator.gather(outputs)
-            preds = preds[:, max_length:].detach().cpu().numpy()
-            test_preds.extend(tokenizer.batch_decode(preds, skip_special_tokens=True))
-
-        test_preds_cleaned = []
-        for _, pred in enumerate(test_preds):
-            test_preds_cleaned.append(get_closest_label(pred, classes))
-
-        test_df = dataset["test"].to_pandas()
-        assert len(test_preds_cleaned) == len(test_df), f"{len(test_preds_cleaned)} != {len(test_df)}"
-        test_df[label_column] = test_preds_cleaned
-        test_df["text_labels_orig"] = test_preds
-        accelerator.print(test_df[[text_column, label_column]].sample(20))
-
-        pred_df = test_df[["ID", label_column]]
-        pred_df.columns = ["ID", "Label"]
-
-        os.makedirs(f"data/{dataset_name}", exist_ok=True)
-        pred_df.to_csv(f"data/{dataset_name}/predictions.csv", index=False)
-
-    accelerator.wait_for_everyone()
-    # Option1: Pushing the model to Hugging Face Hub
-    # model.push_to_hub(
-    #     f"{dataset_name}_{model_name_or_path}_{peft_config.peft_type}_{peft_config.task_type}".replace("/", "_"),
-    #     token = "hf_..."
-    # )
-    # token (`bool` or `str`, *optional*):
-    #     `token` is to be used for HTTP Bearer authorization when accessing remote files. If `True`, will use the token generated
-    #     when running `huggingface-cli login` (stored in `~/.huggingface`). Will default to `True` if `repo_url`
-    #     is not specified.
-    #     Or you can get your token from https://huggingface.co/settings/token
-    # Option2: Saving the model locally
-    peft_model_id = f"{dataset_name}_{model_name_or_path}_{peft_config.peft_type}_{peft_config.task_type}".replace(
-        "/", "_"
+    
+    # Define the trainer
+    trainer = Seq2SeqTrainer(
+        model=model,
+        args=training_args,
+        data_collator=data_collator,
+        train_dataset=train_dataset,
+        eval_dataset=eval_dataset,
+        tokenizer=tokenizer,
+        compute_metrics=compute_metrics,
     )
-    model.save_pretrained(peft_model_id)
-    accelerator.wait_for_everyone()
-
+    return trainer
 
 if __name__ == "__main__":
-    main()
+    parser = HfArgumentParser(ScriptArguments)
+    script_args = parser.parse_args_into_dataclasses()[0]
+
+    # Step 1: Load the dataset
+    tokenizer = AutoTokenizer.from_pretrained(script_args.model_name, padding_side="left")
+    tokenizer.pad_token_id = tokenizer.eos_token_id
+    if script_args.dataset_name == 'samsum':
+        dataset = get_preprocessed_samsum(tokenizer)
+    elif script_args.dataset_name == 'summscreen':
+        dataset = get_preprocessed_summscreen(tokenizer)
+    data_collator = DataCollatorForSeq2Seq(tokenizer)
+
+    rouge = evaluate.load('rouge')
+    def compute_metrics(eval_preds):
+        preds, labels = eval_preds
+
+        # decode preds and labels
+        labels = np.where(labels != -100, labels, tokenizer.pad_token_id)
+        decoded_preds = tokenizer.batch_decode(preds, skip_special_tokens=True)
+        decoded_labels = tokenizer.batch_decode(labels, skip_special_tokens=True)
+
+        # rougeLSum expects newline after each sentence
+        decoded_preds = ["\n".join(nltk.sent_tokenize(pred.strip())) for pred in decoded_preds]
+        decoded_labels = ["\n".join(nltk.sent_tokenize(label.strip())) for label in decoded_labels]
+        result = rouge.compute(predictions=decoded_preds, references=decoded_labels)
+        return result
+
+    # Initialize the trainer
+    trainer = init_trainer(script_args,
+                           dataset['train'],
+                           dataset['validation'],
+                           compute_metrics,
+                           data_collator)
+    trainer.train()
+    trainer.accelerator.wait_for_everyone()
+
+    for checkpoint_dir in os.listdir(script_args.output_dir):
+        checkpoint_path = os.path.join(script_args.output_dir, checkpoint_dir)
+        if os.path.isdir(checkpoint_path):
+
+            # Initialize a new trainer due to bug in loading checkpoint after `predict`
+            del trainer
+            torch.cuda.empty_cache()
+            gc.collect()
+            trainer = init_trainer(script_args, compute_metrics)
+
+            # TODO: This should be refactored into method `predict_from_checkpoint`
+            trainer._load_from_checkpoint(checkpoint_path)
+
+            prediction_output = trainer.predict(test_dataset=dataset['test'])
+            if trainer.accelerator.is_main_process:
+                print(f"Prediction results from checkpoint: {checkpoint_path}:")
+                print(prediction_output)
+            trainer.accelerator.wait_for_everyone()
