@@ -1,0 +1,76 @@
+trainable params: 3,407,872 || all params: 7,245,139,968 || trainable%: 0.04703666202518836
+trainable params: 3,407,872 || all params: 7,245,139,968 || trainable%: 0.04703666202518836
+[2024-02-04 08:45:56,300] [INFO] [real_accelerator.py:161:get_accelerator] Setting ds_accelerator to cuda (auto detect)
+[2024-02-04 08:45:56,314] [INFO] [real_accelerator.py:161:get_accelerator] Setting ds_accelerator to cuda (auto detect)
+trainable params: 3,407,872 || all params: 7,245,139,968 || trainable%: 0.04703666202518836
+[2024-02-04 08:45:56,509] [INFO] [real_accelerator.py:161:get_accelerator] Setting ds_accelerator to cuda (auto detect)
+trainable params: 3,407,872 || all params: 7,245,139,968 || trainable%: 0.04703666202518836
+[2024-02-04 08:45:56,568] [INFO] [real_accelerator.py:161:get_accelerator] Setting ds_accelerator to cuda (auto detect)
+[2024-02-04 08:45:59,268] [INFO] [comm.py:637:init_distributed] cdb=None
+[2024-02-04 08:45:59,281] [INFO] [comm.py:637:init_distributed] cdb=None
+[2024-02-04 08:45:59,370] [INFO] [comm.py:637:init_distributed] cdb=None
+[2024-02-04 08:45:59,475] [INFO] [comm.py:637:init_distributed] cdb=None
+[2024-02-04 08:45:59,475] [INFO] [comm.py:668:init_distributed] Initializing TorchBackend in DeepSpeed with backend nccl
+ninja: no work to do.
+Time to load cpu_adam op: 2.409501791000366 seconds
+Time to load cpu_adam op: 2.4700369834899902 seconds
+Time to load cpu_adam op: 2.4691994190216064 seconds
+Time to load cpu_adam op: 2.4691970348358154 seconds
+Parameter Offload: Total persistent parameters: 3674112 in 193 params
+{'loss': 2.6712, 'learning_rate': 0.0, 'epoch': 0.0}
+{'loss': 2.6876, 'learning_rate': 0.0, 'epoch': 0.0}
+{'loss': 2.6697, 'learning_rate': 0.0, 'epoch': 0.0}
+{'loss': 2.6311, 'learning_rate': 0.0, 'epoch': 0.0}
+{'loss': 2.6394, 'learning_rate': 1.1594202898550724e-06, 'epoch': 0.01}
+{'loss': 2.628, 'learning_rate': 2.318840579710145e-06, 'epoch': 0.01}
+{'loss': 2.6969, 'learning_rate': 3.4782608695652175e-06, 'epoch': 0.01}
+{'loss': 2.6802, 'learning_rate': 4.927536231884058e-06, 'epoch': 0.01}
+{'loss': 2.6623, 'learning_rate': 6.376811594202898e-06, 'epoch': 0.01}
+{'loss': 2.5734, 'learning_rate': 7.82608695652174e-06, 'epoch': 0.01}
+{'loss': 2.4668, 'learning_rate': 9.27536231884058e-06, 'epoch': 0.01}
+{'loss': 2.3934, 'learning_rate': 1.072463768115942e-05, 'epoch': 0.02}
+{'loss': 2.2504, 'learning_rate': 1.2173913043478261e-05, 'epoch': 0.02}
+{'loss': 2.134, 'learning_rate': 1.3623188405797103e-05, 'epoch': 0.02}
+{'loss': 2.0087, 'learning_rate': 1.4782608695652176e-05, 'epoch': 0.02}
+{'loss': 1.901, 'learning_rate': 1.5942028985507246e-05, 'epoch': 0.02}
+{'loss': 1.6998, 'learning_rate': 1.739130434782609e-05, 'epoch': 0.02}
+{'loss': 1.5579, 'learning_rate': 1.8840579710144928e-05, 'epoch': 0.02}
+{'loss': 1.444, 'learning_rate': 2.028985507246377e-05, 'epoch': 0.03}
+{'loss': 1.3997, 'learning_rate': 2.173913043478261e-05, 'epoch': 0.03}
+{'loss': 1.3716, 'learning_rate': 2.318840579710145e-05, 'epoch': 0.03}
+{'loss': 1.336, 'learning_rate': 2.4637681159420292e-05, 'epoch': 0.03}
+{'loss': 1.3552, 'learning_rate': 2.608695652173913e-05, 'epoch': 0.03}
+{'loss': 1.3197, 'learning_rate': 2.753623188405797e-05, 'epoch': 0.03}
+{'loss': 1.309, 'learning_rate': 2.8985507246376814e-05, 'epoch': 0.03}
+{'loss': 1.3646, 'learning_rate': 3.0434782608695656e-05, 'epoch': 0.04}
+{'loss': 1.3084, 'learning_rate': 3.188405797101449e-05, 'epoch': 0.04}
+{'loss': 1.3339, 'learning_rate': 3.3333333333333335e-05, 'epoch': 0.04}
+{'loss': 1.2992, 'learning_rate': 3.478260869565218e-05, 'epoch': 0.04}
+{'loss': 1.2687, 'learning_rate': 3.6231884057971014e-05, 'epoch': 0.04}
+{'loss': 1.252, 'learning_rate': 3.7681159420289856e-05, 'epoch': 0.04}
+{'loss': 1.3699, 'learning_rate': 3.91304347826087e-05, 'epoch': 0.05}
+{'loss': 1.3022, 'learning_rate': 4.057971014492754e-05, 'epoch': 0.05}
+{'loss': 1.2853, 'learning_rate': 4.202898550724638e-05, 'epoch': 0.05}
+{'loss': 1.3084, 'learning_rate': 4.347826086956522e-05, 'epoch': 0.05}
+{'loss': 1.2812, 'learning_rate': 4.492753623188406e-05, 'epoch': 0.05}
+{'loss': 1.2261, 'learning_rate': 4.63768115942029e-05, 'epoch': 0.05}
+{'loss': 1.313, 'learning_rate': 4.782608695652174e-05, 'epoch': 0.05}
+{'loss': 1.275, 'learning_rate': 4.9275362318840584e-05, 'epoch': 0.06}
+{'loss': 1.2404, 'learning_rate': 5.072463768115943e-05, 'epoch': 0.06}
+{'loss': 1.2444, 'learning_rate': 5.217391304347826e-05, 'epoch': 0.06}
+{'loss': 1.2622, 'learning_rate': 5.3623188405797106e-05, 'epoch': 0.06}
+{'loss': 1.2588, 'learning_rate': 5.507246376811594e-05, 'epoch': 0.06}
+{'loss': 1.2555, 'learning_rate': 5.652173913043478e-05, 'epoch': 0.06}
+{'loss': 1.263, 'learning_rate': 5.797101449275363e-05, 'epoch': 0.06}
+{'loss': 1.2453, 'learning_rate': 5.942028985507246e-05, 'epoch': 0.07}
+{'loss': 1.2525, 'learning_rate': 6.086956521739131e-05, 'epoch': 0.07}
+{'loss': 1.2177, 'learning_rate': 6.231884057971015e-05, 'epoch': 0.07}
+{'loss': 1.2897, 'learning_rate': 6.376811594202898e-05, 'epoch': 0.07}
+{'loss': 1.2219, 'learning_rate': 6.521739130434783e-05, 'epoch': 0.07}
+{'loss': 1.2285, 'learning_rate': 6.666666666666667e-05, 'epoch': 0.07}
+{'loss': 1.2358, 'learning_rate': 6.811594202898552e-05, 'epoch': 0.07}
+{'loss': 1.2308, 'learning_rate': 6.956521739130436e-05, 'epoch': 0.08}
+{'loss': 1.2329, 'learning_rate': 7.101449275362319e-05, 'epoch': 0.08}
+{'loss': 1.2646, 'learning_rate': 7.246376811594203e-05, 'epoch': 0.08}
+{'loss': 1.2621, 'learning_rate': 7.391304347826086e-05, 'epoch': 0.08}
+{'loss': 1.2225, 'learning_rate': 7.536231884057971e-05, 'epoch': 0.08}

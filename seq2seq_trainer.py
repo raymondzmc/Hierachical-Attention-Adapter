@@ -25,7 +25,7 @@ from transformers.generation.configuration_utils import GenerationConfig
 from transformers.integrations.deepspeed import is_deepspeed_zero3_enabled
 from transformers.utils import logging, is_peft_available
 from trainer import Trainer
-
+import pdb
 
 if TYPE_CHECKING:
     from transformers.data.data_collator import DataCollator
@@ -269,7 +269,6 @@ class Seq2SeqTrainer(Trainer):
 
         has_labels = "labels" in inputs
         inputs = self._prepare_inputs(inputs)
-
         # Priority (handled in generate):
         # non-`None` gen_kwargs > model.generation_config > default GenerationConfig()
         if len(gen_kwargs) == 0 and hasattr(self, "_gen_kwargs"):
@@ -308,8 +307,24 @@ class Seq2SeqTrainer(Trainer):
         labels = generation_inputs['labels']
         labels[-1][labels[-1] == -100]
         
-        
-        generated_tokens = self.model.generate(input_ids=input_ids, attention_mask=attention_mask, **gen_kwargs)
+        # token_type_ids = generation_inputs.get('token_type_ids', None)
+        if "token_type_ids" in inputs:
+            token_type_ids = inputs["token_type_ids"]
+            token_type_ids = token_type_ids.masked_fill(label_mask, -100)
+            token_type_ids = [ids[ids != -100] for ids in token_type_ids]
+            token_type_ids = [nn.functional.pad(x, (max_length - x.size(0), 0), 'constant', 0) for x in token_type_ids]
+            gen_kwargs["token_type_ids"] = torch.stack(token_type_ids)
+            # if self.model.generation_config.max_new_tokens is None:
+            #     pad_len = self.model.generation_config.max_length
+            # else:
+            #     pad_len = token_type_ids.shape[-1] + self.model.generation_config.max_new_tokens
+            # token_type_ids = self._pad_tensors_to_max_len(token_type_ids, pad_len, -1)
+
+        generated_tokens = self.model.generate(
+            input_ids=input_ids,
+            attention_mask=attention_mask,
+            use_cache=False,
+            **gen_kwargs)
         generated_tokens = generated_tokens[:, max_length:]
         # Temporary hack to ensure the generation config is not initialized for each iteration of the evaluation loop
         # TODO: remove this hack when the legacy code that initializes generation_config from a model config is
@@ -354,17 +369,18 @@ class Seq2SeqTrainer(Trainer):
     def predict_from_checkpoint(self, checkpoint_path):
         raise NotImplementedError("`predict_from_checkpoint` method not implemented!")
 
-    def _pad_tensors_to_max_len(self, tensor, max_length):
-        if self.tokenizer is not None and hasattr(self.tokenizer, "pad_token_id"):
-            # If PAD token is not defined at least EOS token has to be defined
-            pad_token_id = (
-                self.tokenizer.pad_token_id if self.tokenizer.pad_token_id is not None else self.tokenizer.eos_token_id
-            )
-        else:
-            if self.model.config.pad_token_id is not None:
-                pad_token_id = self.model.config.pad_token_id
+    def _pad_tensors_to_max_len(self, tensor, max_length, pad_token_id=None):
+        if pad_token_id is None:
+            if self.tokenizer is not None and hasattr(self.tokenizer, "pad_token_id"):
+                # If PAD token is not defined at least EOS token has to be defined
+                pad_token_id = (
+                    self.tokenizer.pad_token_id if self.tokenizer.pad_token_id is not None else self.tokenizer.eos_token_id
+                )
             else:
-                raise ValueError("Pad_token_id must be set in the configuration of the model, in order to pad tensors")
+                if self.model.config.pad_token_id is not None:
+                    pad_token_id = self.model.config.pad_token_id
+                else:
+                    raise ValueError("Pad_token_id must be set in the configuration of the model, in order to pad tensors")
 
         padded_tensor = pad_token_id * torch.ones(
             (tensor.shape[0], max_length), dtype=tensor.dtype, device=tensor.device

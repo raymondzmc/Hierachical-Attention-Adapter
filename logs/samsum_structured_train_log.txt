@@ -1,0 +1,210 @@
+trainable params: 158,377,984 || all params: 7,269,038,080 || trainable%: 2.1788025080754565
+[2024-01-24 15:39:28,183] [INFO] [real_accelerator.py:161:get_accelerator] Setting ds_accelerator to cuda (auto detect)
+trainable params: 158,377,984 || all params: 7,269,038,080 || trainable%: 2.1788025080754565
+trainable params: 158,377,984 || all params: 7,269,038,080 || trainable%: 2.1788025080754565
+[2024-01-24 15:39:28,917] [INFO] [real_accelerator.py:161:get_accelerator] Setting ds_accelerator to cuda (auto detect)
+[2024-01-24 15:39:28,923] [INFO] [real_accelerator.py:161:get_accelerator] Setting ds_accelerator to cuda (auto detect)
+trainable params: 158,377,984 || all params: 7,269,038,080 || trainable%: 2.1788025080754565
+[2024-01-24 15:39:29,728] [INFO] [real_accelerator.py:161:get_accelerator] Setting ds_accelerator to cuda (auto detect)
+[2024-01-24 15:39:30,936] [INFO] [comm.py:637:init_distributed] cdb=None
+[2024-01-24 15:39:31,619] [INFO] [comm.py:637:init_distributed] cdb=None
+[2024-01-24 15:39:31,619] [INFO] [comm.py:668:init_distributed] Initializing TorchBackend in DeepSpeed with backend nccl
+[2024-01-24 15:39:31,637] [INFO] [comm.py:637:init_distributed] cdb=None
+[2024-01-24 15:39:32,421] [INFO] [comm.py:637:init_distributed] cdb=None
+ninja: no work to do.
+Time to load cpu_adam op: 2.3986918926239014 seconds
+Time to load cpu_adam op: 2.4609694480895996 seconds
+Time to load cpu_adam op: 2.459526300430298 seconds
+Time to load cpu_adam op: 2.457555055618286 seconds
+Parameter Offload: Total persistent parameters: 2406400 in 1249 params
+trainable params: 158,377,984 || all params: 7,269,038,080 || trainable%: 2.1788025080754565
+trainable params: 158,377,984 || all params: 7,269,038,080 || trainable%: 2.1788025080754565
+[2024-01-24 15:40:33,571] [INFO] [real_accelerator.py:161:get_accelerator] Setting ds_accelerator to cuda (auto detect)
+trainable params: 158,377,984 || all params: 7,269,038,080 || trainable%: 2.1788025080754565
+[2024-01-24 15:40:34,027] [INFO] [real_accelerator.py:161:get_accelerator] Setting ds_accelerator to cuda (auto detect)
+trainable params: 158,377,984 || all params: 7,269,038,080 || trainable%: 2.1788025080754565
+[2024-01-24 15:40:34,112] [INFO] [real_accelerator.py:161:get_accelerator] Setting ds_accelerator to cuda (auto detect)
+[2024-01-24 15:40:34,565] [INFO] [real_accelerator.py:161:get_accelerator] Setting ds_accelerator to cuda (auto detect)
+[2024-01-24 15:40:36,331] [INFO] [comm.py:637:init_distributed] cdb=None
+[2024-01-24 15:40:36,769] [INFO] [comm.py:637:init_distributed] cdb=None
+[2024-01-24 15:40:36,830] [INFO] [comm.py:637:init_distributed] cdb=None
+[2024-01-24 15:40:37,348] [INFO] [comm.py:637:init_distributed] cdb=None
+[2024-01-24 15:40:37,348] [INFO] [comm.py:668:init_distributed] Initializing TorchBackend in DeepSpeed with backend nccl
+ninja: no work to do.
+Time to load cpu_adam op: 2.396752119064331 seconds
+Time to load cpu_adam op: 2.4670491218566895 seconds
+Time to load cpu_adam op: 2.4579789638519287 seconds
+Time to load cpu_adam op: 2.4593796730041504 seconds
+Parameter Offload: Total persistent parameters: 2406400 in 1249 params
+{'loss': 12.138, 'learning_rate': 0.0, 'epoch': 0.01}
+{'loss': 12.1371, 'learning_rate': 0.0, 'epoch': 0.04}
+trainable params: 679,337,984 || all params: 7,789,998,080 || trainable%: 8.720643792507841
+trainable params: 679,337,984 || all params: 7,789,998,080 || trainable%: 8.720643792507841
+trainable params: 679,337,984 || all params: 7,789,998,080 || trainable%: 8.720643792507841
+[2024-01-24 15:51:36,822] [INFO] [real_accelerator.py:161:get_accelerator] Setting ds_accelerator to cuda (auto detect)
+trainable params: 679,337,984 || all params: 7,789,998,080 || trainable%: 8.720643792507841
+[2024-01-24 15:51:37,327] [INFO] [real_accelerator.py:161:get_accelerator] Setting ds_accelerator to cuda (auto detect)
+[2024-01-24 15:51:37,327] [INFO] [real_accelerator.py:161:get_accelerator] Setting ds_accelerator to cuda (auto detect)
+[2024-01-24 15:51:37,664] [INFO] [real_accelerator.py:161:get_accelerator] Setting ds_accelerator to cuda (auto detect)
+[2024-01-24 15:51:39,545] [INFO] [comm.py:637:init_distributed] cdb=None
+[2024-01-24 15:51:40,049] [INFO] [comm.py:637:init_distributed] cdb=None
+[2024-01-24 15:51:40,050] [INFO] [comm.py:668:init_distributed] Initializing TorchBackend in DeepSpeed with backend nccl
+[2024-01-24 15:51:40,085] [INFO] [comm.py:637:init_distributed] cdb=None
+[2024-01-24 15:51:40,489] [INFO] [comm.py:637:init_distributed] cdb=None
+ninja: no work to do.
+Time to load cpu_adam op: 2.3942835330963135 seconds
+Time to load cpu_adam op: 2.4664485454559326 seconds
+Time to load cpu_adam op: 2.4664268493652344 seconds
+Time to load cpu_adam op: 2.466362953186035 seconds
+Parameter Offload: Total persistent parameters: 1175552 in 833 params
+{'loss': 11.0368, 'learning_rate': 0.0, 'epoch': 0.03}
+{'loss': 11.0156, 'learning_rate': 0.0, 'epoch': 0.17}
+{'loss': 11.0062, 'learning_rate': 0.0, 'epoch': 0.35}
+{'loss': 11.0287, 'learning_rate': 0.0, 'epoch': 0.52}
+{'loss': 10.9994, 'learning_rate': 8.695652173913044e-05, 'epoch': 0.69}
+{'loss': 8.7538, 'learning_rate': 0.0002608695652173913, 'epoch': 0.87}
+{'eval_loss': 9.437849998474121, 'eval_runtime': 211.3651, 'eval_samples_per_second': 3.87, 'eval_steps_per_second': 0.487, 'epoch': 0.97}
+[Evaluation Metrics] {'eval_loss': 9.437849998474121, 'eval_runtime': 211.3651, 'eval_samples_per_second': 3.87, 'eval_steps_per_second': 0.487, 'epoch': 0.97}
+{'loss': 8.7568, 'learning_rate': 0.0004347826086956522, 'epoch': 1.04}
+{'loss': 9.3978, 'learning_rate': 0.0006521739130434783, 'epoch': 1.22}
+{'loss': 9.8642, 'learning_rate': 0.0008695652173913044, 'epoch': 1.39}
+{'loss': 10.9564, 'learning_rate': 0.0009900497512437812, 'epoch': 1.56}
+{'loss': 10.7117, 'learning_rate': 0.0009651741293532339, 'epoch': 1.74}
+{'loss': 9.9505, 'learning_rate': 0.0009402985074626867, 'epoch': 1.91}
+{'eval_loss': 9.208786964416504, 'eval_runtime': 206.3289, 'eval_samples_per_second': 3.965, 'eval_steps_per_second': 0.499, 'epoch': 1.98}
+[Evaluation Metrics] {'eval_loss': 9.208786964416504, 'eval_runtime': 206.3289, 'eval_samples_per_second': 3.965, 'eval_steps_per_second': 0.499, 'epoch': 1.98}
+{'loss': 8.8583, 'learning_rate': 0.0009154228855721394, 'epoch': 2.08}
+{'loss': 8.3503, 'learning_rate': 0.0008905472636815921, 'epoch': 2.26}
+{'loss': 7.8454, 'learning_rate': 0.0008656716417910447, 'epoch': 2.43}
+{'loss': 7.5002, 'learning_rate': 0.0008407960199004975, 'epoch': 2.61}
+{'loss': 7.2745, 'learning_rate': 0.0008159203980099502, 'epoch': 2.78}
+{'loss': 7.1268, 'learning_rate': 0.000791044776119403, 'epoch': 2.95}
+{'eval_loss': 7.1325273513793945, 'eval_runtime': 203.3473, 'eval_samples_per_second': 4.023, 'eval_steps_per_second': 0.507, 'epoch': 2.99}
+[Evaluation Metrics] {'eval_loss': 7.1325273513793945, 'eval_runtime': 203.3473, 'eval_samples_per_second': 4.023, 'eval_steps_per_second': 0.507, 'epoch': 2.99}
+{'loss': 7.0273, 'learning_rate': 0.0007661691542288557, 'epoch': 3.13}
+{'loss': 6.9752, 'learning_rate': 0.0007412935323383084, 'epoch': 3.3}
+{'loss': 6.9101, 'learning_rate': 0.0007164179104477611, 'epoch': 3.47}
+{'loss': 6.8402, 'learning_rate': 0.0006915422885572139, 'epoch': 3.65}
+{'loss': 6.8263, 'learning_rate': 0.0006666666666666666, 'epoch': 3.82}
+{'loss': 6.8088, 'learning_rate': 0.0006417910447761194, 'epoch': 4.0}
+{'eval_loss': 6.784923553466797, 'eval_runtime': 200.6426, 'eval_samples_per_second': 4.077, 'eval_steps_per_second': 0.513, 'epoch': 4.0}
+[Evaluation Metrics] {'eval_loss': 6.784923553466797, 'eval_runtime': 200.6426, 'eval_samples_per_second': 4.077, 'eval_steps_per_second': 0.513, 'epoch': 4.0}
+{'loss': 6.7489, 'learning_rate': 0.0006169154228855722, 'epoch': 4.17}
+{'loss': 6.7217, 'learning_rate': 0.0005920398009950249, 'epoch': 4.34}
+{'loss': 6.7196, 'learning_rate': 0.0005671641791044776, 'epoch': 4.52}
+{'loss': 6.6998, 'learning_rate': 0.0005422885572139303, 'epoch': 4.69}
+{'loss': 6.6923, 'learning_rate': 0.0005174129353233831, 'epoch': 4.86}
+{'eval_loss': 6.684194087982178, 'eval_runtime': 200.2564, 'eval_samples_per_second': 4.085, 'eval_steps_per_second': 0.514, 'epoch': 4.97}
+[Evaluation Metrics] {'eval_loss': 6.684194087982178, 'eval_runtime': 200.2564, 'eval_samples_per_second': 4.085, 'eval_steps_per_second': 0.514, 'epoch': 4.97}
+{'loss': 6.6729, 'learning_rate': 0.0004925373134328358, 'epoch': 5.04}
+{'loss': 6.6506, 'learning_rate': 0.00046766169154228857, 'epoch': 5.21}
+{'loss': 6.6488, 'learning_rate': 0.00044278606965174127, 'epoch': 5.39}
+{'loss': 6.6245, 'learning_rate': 0.000417910447761194, 'epoch': 5.56}
+{'loss': 6.6461, 'learning_rate': 0.0003930348258706468, 'epoch': 5.73}
+{'loss': 6.6485, 'learning_rate': 0.0003681592039800995, 'epoch': 5.91}
+{'eval_loss': 6.626747131347656, 'eval_runtime': 200.5002, 'eval_samples_per_second': 4.08, 'eval_steps_per_second': 0.514, 'epoch': 5.98}
+[Evaluation Metrics] {'eval_loss': 6.626747131347656, 'eval_runtime': 200.5002, 'eval_samples_per_second': 4.08, 'eval_steps_per_second': 0.514, 'epoch': 5.98}
+{'loss': 6.5991, 'learning_rate': 0.00034328358208955223, 'epoch': 6.08}
+{'loss': 6.5833, 'learning_rate': 0.000318407960199005, 'epoch': 6.25}
+{'loss': 6.6013, 'learning_rate': 0.00029353233830845774, 'epoch': 6.43}
+{'loss': 6.6095, 'learning_rate': 0.00026865671641791044, 'epoch': 6.6}
+{'loss': 6.6155, 'learning_rate': 0.0002437810945273632, 'epoch': 6.78}
+{'loss': 6.5995, 'learning_rate': 0.00021890547263681592, 'epoch': 6.95}
+{'eval_loss': 6.594231128692627, 'eval_runtime': 200.5126, 'eval_samples_per_second': 4.08, 'eval_steps_per_second': 0.514, 'epoch': 6.98}
+[Evaluation Metrics] {'eval_loss': 6.594231128692627, 'eval_runtime': 200.5126, 'eval_samples_per_second': 4.08, 'eval_steps_per_second': 0.514, 'epoch': 6.98}
+{'loss': 6.5819, 'learning_rate': 0.00019402985074626867, 'epoch': 7.12}
+{'loss': 6.5778, 'learning_rate': 0.0001691542288557214, 'epoch': 7.3}
+{'loss': 6.5805, 'learning_rate': 0.00014427860696517413, 'epoch': 7.47}
+{'loss': 6.5541, 'learning_rate': 0.00011940298507462687, 'epoch': 7.64}
+{'eval_loss': 6.579270839691162, 'eval_runtime': 200.5248, 'eval_samples_per_second': 4.079, 'eval_steps_per_second': 0.514, 'epoch': 7.78}
+[Evaluation Metrics] {'eval_loss': 6.579270839691162, 'eval_runtime': 200.5248, 'eval_samples_per_second': 4.079, 'eval_steps_per_second': 0.514, 'epoch': 7.78}
+{'train_runtime': 54114.5895, 'train_samples_per_second': 2.178, 'train_steps_per_second': 0.004, 'train_loss': 7.710176063435418, 'epoch': 7.78}
+trainable params: 679,337,984 || all params: 7,789,998,080 || trainable%: 8.720643792507841
+trainable params: 679,337,984 || all params: 7,789,998,080 || trainable%: 8.720643792507841
+trainable params: 679,337,984 || all params: 7,789,998,080 || trainable%: 8.720643792507841
+trainable params: 679,337,984 || all params: 7,789,998,080 || trainable%: 8.720643792507841
+trainable params: 679,337,984 || all params: 7,789,998,080 || trainable%: 8.720643792507841
+trainable params: 679,337,984 || all params: 7,789,998,080 || trainable%: 8.720643792507841
+trainable params: 679,337,984 || all params: 7,789,998,080 || trainable%: 8.720643792507841
+trainable params: 679,337,984 || all params: 7,789,998,080 || trainable%: 8.720643792507841
+[2024-01-30 20:04:14,606] [INFO] [real_accelerator.py:161:get_accelerator] Setting ds_accelerator to cuda (auto detect)
+[2024-01-30 20:04:14,815] [INFO] [real_accelerator.py:161:get_accelerator] Setting ds_accelerator to cuda (auto detect)
+[2024-01-30 20:04:14,815] [INFO] [real_accelerator.py:161:get_accelerator] Setting ds_accelerator to cuda (auto detect)
+[2024-01-30 20:04:14,871] [INFO] [real_accelerator.py:161:get_accelerator] Setting ds_accelerator to cuda (auto detect)
+[2024-01-30 20:04:17,285] [INFO] [comm.py:637:init_distributed] cdb=None
+[2024-01-30 20:04:17,502] [INFO] [comm.py:637:init_distributed] cdb=None
+[2024-01-30 20:04:17,603] [INFO] [comm.py:637:init_distributed] cdb=None
+[2024-01-30 20:04:17,669] [INFO] [comm.py:637:init_distributed] cdb=None
+[2024-01-30 20:04:17,669] [INFO] [comm.py:668:init_distributed] Initializing TorchBackend in DeepSpeed with backend nccl
+ninja: no work to do.
+Time to load cpu_adam op: 2.3997135162353516 seconds
+Time to load cpu_adam op: 2.4614038467407227 seconds
+Time to load cpu_adam op: 2.4594082832336426 seconds
+Time to load cpu_adam op: 2.459188938140869 seconds
+Parameter Offload: Total persistent parameters: 1175552 in 833 params
+{'loss': 10.7538, 'learning_rate': 0.0, 'epoch': 0.03}
+{'loss': 10.7651, 'learning_rate': 0.0, 'epoch': 0.17}
+{'loss': 10.7765, 'learning_rate': 0.0, 'epoch': 0.35}
+{'loss': 10.7811, 'learning_rate': 0.0, 'epoch': 0.52}
+{'loss': 10.7847, 'learning_rate': 0.0, 'epoch': 0.69}
+{'loss': 12.1509, 'learning_rate': 0.00013043478260869564, 'epoch': 0.87}
+{'eval_loss': 11.272034645080566, 'eval_runtime': 212.1632, 'eval_samples_per_second': 3.856, 'eval_steps_per_second': 0.485, 'epoch': 0.97}
+[Evaluation Metrics] {'eval_loss': 11.272034645080566, 'eval_runtime': 212.1632, 'eval_samples_per_second': 3.856, 'eval_steps_per_second': 0.485, 'epoch': 0.97}
+{'loss': 13.233, 'learning_rate': 0.00034782608695652176, 'epoch': 1.04}
+{'loss': 13.5329, 'learning_rate': 0.0005652173913043478, 'epoch': 1.22}
+{'loss': 14.5368, 'learning_rate': 0.000782608695652174, 'epoch': 1.39}
+{'loss': 12.9123, 'learning_rate': 0.001, 'epoch': 1.56}
+{'loss': 12.2572, 'learning_rate': 0.0009751243781094528, 'epoch': 1.74}
+{'loss': 11.1709, 'learning_rate': 0.0009502487562189055, 'epoch': 1.91}
+{'eval_loss': 10.605494499206543, 'eval_runtime': 207.2269, 'eval_samples_per_second': 3.947, 'eval_steps_per_second': 0.497, 'epoch': 1.98}
+[Evaluation Metrics] {'eval_loss': 10.605494499206543, 'eval_runtime': 207.2269, 'eval_samples_per_second': 3.947, 'eval_steps_per_second': 0.497, 'epoch': 1.98}
+{'loss': 10.519, 'learning_rate': 0.0009253731343283583, 'epoch': 2.08}
+{'loss': 9.1882, 'learning_rate': 0.0009004975124378109, 'epoch': 2.26}
+{'loss': 8.538, 'learning_rate': 0.0008756218905472637, 'epoch': 2.43}
+{'loss': 7.9043, 'learning_rate': 0.0008507462686567164, 'epoch': 2.61}
+{'loss': 7.5128, 'learning_rate': 0.0008258706467661692, 'epoch': 2.78}
+{'loss': 7.2255, 'learning_rate': 0.0008009950248756219, 'epoch': 2.95}
+{'eval_loss': 7.162972927093506, 'eval_runtime': 203.5602, 'eval_samples_per_second': 4.018, 'eval_steps_per_second': 0.506, 'epoch': 2.99}
+[Evaluation Metrics] {'eval_loss': 7.162972927093506, 'eval_runtime': 203.5602, 'eval_samples_per_second': 4.018, 'eval_steps_per_second': 0.506, 'epoch': 2.99}
+{'loss': 7.0816, 'learning_rate': 0.0007761194029850747, 'epoch': 3.13}
+{'loss': 6.9828, 'learning_rate': 0.0007512437810945275, 'epoch': 3.3}
+{'loss': 6.8849, 'learning_rate': 0.0007263681592039801, 'epoch': 3.47}
+{'loss': 6.8114, 'learning_rate': 0.0007014925373134329, 'epoch': 3.65}
+{'loss': 6.79, 'learning_rate': 0.0006766169154228856, 'epoch': 3.82}
+{'loss': 6.7701, 'learning_rate': 0.0006517412935323384, 'epoch': 4.0}
+{'eval_loss': 6.725846290588379, 'eval_runtime': 202.1727, 'eval_samples_per_second': 4.046, 'eval_steps_per_second': 0.509, 'epoch': 4.0}
+[Evaluation Metrics] {'eval_loss': 6.725846290588379, 'eval_runtime': 202.1727, 'eval_samples_per_second': 4.046, 'eval_steps_per_second': 0.509, 'epoch': 4.0}
+{'loss': 6.6991, 'learning_rate': 0.0006268656716417911, 'epoch': 4.17}
+{'loss': 6.6726, 'learning_rate': 0.0006019900497512439, 'epoch': 4.34}
+{'loss': 6.6708, 'learning_rate': 0.0005771144278606965, 'epoch': 4.52}
+{'loss': 6.6509, 'learning_rate': 0.0005522388059701493, 'epoch': 4.69}
+{'loss': 6.6392, 'learning_rate': 0.000527363184079602, 'epoch': 4.86}
+{'eval_loss': 6.626539707183838, 'eval_runtime': 201.306, 'eval_samples_per_second': 4.063, 'eval_steps_per_second': 0.512, 'epoch': 4.97}
+[Evaluation Metrics] {'eval_loss': 6.626539707183838, 'eval_runtime': 201.306, 'eval_samples_per_second': 4.063, 'eval_steps_per_second': 0.512, 'epoch': 4.97}
+{'loss': 6.6216, 'learning_rate': 0.0005024875621890548, 'epoch': 5.04}
+{'loss': 6.5939, 'learning_rate': 0.0004776119402985075, 'epoch': 5.21}
+{'loss': 6.5968, 'learning_rate': 0.0004527363184079602, 'epoch': 5.39}
+{'loss': 6.5739, 'learning_rate': 0.00042786069651741293, 'epoch': 5.56}
+{'loss': 6.5907, 'learning_rate': 0.0004029850746268657, 'epoch': 5.73}
+{'loss': 6.5907, 'learning_rate': 0.00037810945273631844, 'epoch': 5.91}
+{'eval_loss': 6.563054084777832, 'eval_runtime': 201.8689, 'eval_samples_per_second': 4.052, 'eval_steps_per_second': 0.51, 'epoch': 5.98}
+[Evaluation Metrics] {'eval_loss': 6.563054084777832, 'eval_runtime': 201.8689, 'eval_samples_per_second': 4.052, 'eval_steps_per_second': 0.51, 'epoch': 5.98}
+{'loss': 6.54, 'learning_rate': 0.00035323383084577114, 'epoch': 6.08}
+{'loss': 6.52, 'learning_rate': 0.0003283582089552239, 'epoch': 6.25}
+{'loss': 6.5392, 'learning_rate': 0.00030348258706467665, 'epoch': 6.43}
+{'loss': 6.5426, 'learning_rate': 0.00027860696517412935, 'epoch': 6.6}
+{'loss': 6.5456, 'learning_rate': 0.0002537313432835821, 'epoch': 6.78}
+{'loss': 6.5268, 'learning_rate': 0.00022885572139303486, 'epoch': 6.95}
+{'eval_loss': 6.51570463180542, 'eval_runtime': 201.5814, 'eval_samples_per_second': 4.058, 'eval_steps_per_second': 0.511, 'epoch': 6.98}
+[Evaluation Metrics] {'eval_loss': 6.51570463180542, 'eval_runtime': 201.5814, 'eval_samples_per_second': 4.058, 'eval_steps_per_second': 0.511, 'epoch': 6.98}
+{'loss': 6.504, 'learning_rate': 0.00020398009950248756, 'epoch': 7.12}
+{'loss': 6.4996, 'learning_rate': 0.00017910447761194028, 'epoch': 7.3}
+{'loss': 6.4991, 'learning_rate': 0.00015422885572139304, 'epoch': 7.47}
+{'loss': 6.4695, 'learning_rate': 0.00012935323383084577, 'epoch': 7.64}
+{'eval_loss': 6.493685722351074, 'eval_runtime': 201.9161, 'eval_samples_per_second': 4.051, 'eval_steps_per_second': 0.51, 'epoch': 7.78}
+[Evaluation Metrics] {'eval_loss': 6.493685722351074, 'eval_runtime': 201.9161, 'eval_samples_per_second': 4.051, 'eval_steps_per_second': 0.51, 'epoch': 7.78}
+{'train_runtime': 56704.7966, 'train_samples_per_second': 2.078, 'train_steps_per_second': 0.004, 'train_loss': 8.222685268947057, 'epoch': 7.78}
+trainable params: 679,337,984 || all params: 7,789,998,080 || trainable%: 8.720643792507841
+trainable params: 679,337,984 || all params: 7,789,998,080 || trainable%: 8.720643792507841
+trainable params: 679,337,984 || all params: 7,789,998,080 || trainable%: 8.720643792507841
+trainable params: 679,337,984 || all params: 7,789,998,080 || trainable%: 8.720643792507841

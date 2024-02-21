@@ -2,35 +2,43 @@ import pdb
 import datasets
 
 
-def get_preprocessed_summscreen(tokenizer):
+def get_preprocessed_summscreen(tokenizer, return_token_type_ids=False):
     dataset = datasets.load_dataset("YuanPJ/summ_screen", "tms")
     def preprocess_function(example):
-        dialogue = tokenizer.bos_token + "\n".join(example["Transcript"]) + "\n"
-        summary = " ".join(example["Recap"]) + tokenizer.eos_token
-        dialogue_tokens = tokenizer.encode(dialogue, add_special_tokens=False)
-        summary_tokens = tokenizer.encode(summary, add_special_tokens=False)
-        sample = {
-            "input_ids": dialogue_tokens + summary_tokens,
-            "attention_mask": [1] * (len(dialogue_tokens) + len(summary_tokens)),
-            "labels": [-100] * len(dialogue_tokens) + summary_tokens,
-        }
-        return sample
+        summary_token_ids = tokenizer.encode(" ".join(example['Recap']), add_special_tokens=False)
+        if return_token_type_ids:
+            dialogue_token_ids = [tokenizer.bos_token_id]
+            token_type_ids = [0]
+            for idx, turn in enumerate(example["Transcript"]):
+                turn_id = idx + 1 # 0 is used as pad token
+                dialogue_turn = turn.strip() + '\n'
+                turn_token_ids = tokenizer.encode(dialogue_turn, add_special_tokens=False)
+                dialogue_token_ids.extend(turn_token_ids)
+                token_type_ids.extend(len(turn_token_ids) * [turn_id])
 
-    def eval_preprocess_function(example):
-        dialogue = tokenizer.bos_token + "\n".join(example["Transcript"]) + "\n"
-        summary = " ".join(example["Recap"]) + tokenizer.eos_token
-        dialogue_tokens = tokenizer.encode(dialogue, add_special_tokens=False)
-        summary_tokens = tokenizer.encode(summary, add_special_tokens=False)
-        sample = {
-            "input_ids": dialogue_tokens + summary_tokens,
-            "attention_mask": [1] * (len(dialogue_tokens) + len(summary_tokens)),
-            "labels": [-100] * len(dialogue_tokens) + summary_tokens,
-        }
+            # Add summary prompt to the end of input ids
+            summary_prompt_ids = tokenizer.encode("Recap: ", add_special_tokens=False)
+            dialogue_token_ids.extend(summary_prompt_ids)
+            token_type_ids.extend(len(summary_prompt_ids) * [-1])
+            sample = {
+                "input_ids": dialogue_token_ids + summary_token_ids,
+                "attention_mask": [1] * (len(dialogue_token_ids) + len(summary_token_ids)),
+                "labels": [-100] * len(dialogue_token_ids) + summary_token_ids,
+                "token_type_ids": token_type_ids + [-1] * len(summary_token_ids),
+            }
+        else:
+            dialogue = tokenizer.bos_token + "\n".join(example["Transcript"]) + "\nSummary:"
+            dialogue_token_ids = tokenizer.encode(dialogue, add_special_tokens=False)
+            sample = {
+                "input_ids": dialogue_token_ids + summary_token_ids,
+                "attention_mask": [1] * (len(dialogue_token_ids) + len(summary_token_ids)),
+                "labels": [-100] * len(dialogue_token_ids) + summary_token_ids,
+            }
         return sample
 
     # dataset['train'] = dataset.map(preprocess_function, num_proc=16)
     # dataset['validation'] = dataset.map(preprocess_function, num_proc=16)
-    dataset = dataset.map(preprocess_function, num_proc=16)
+    dataset = dataset.map(preprocess_function, num_proc=32)
     
     return dataset
 

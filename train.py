@@ -12,6 +12,7 @@
 
 import gc
 import os
+import json
 import torch
 from typing import Optional, Callable
 from dataclasses import dataclass, field
@@ -20,20 +21,27 @@ from accelerate import Accelerator, dispatch_model, infer_auto_device_map, load_
 from accelerate.utils import get_balanced_memory
 from peft import LoraConfig, TaskType, get_peft_model
 from tqdm import tqdm
+from mistral import MistralForCausalLM, MistralAdapterConfig, mistral_adapter_layer_config
 from transformers import (
     AutoModelForCausalLM, 
     HfArgumentParser,
     Seq2SeqTrainingArguments, 
     AutoTokenizer,
-    DataCollatorForSeq2Seq,
     GenerationConfig,
     BitsAndBytesConfig,
+    StoppingCriteriaList,
+    StoppingCriteria,
 )
 import evaluate
 
 import numpy as np
 from seq2seq_trainer import Seq2SeqTrainer
-from data import get_preprocessed_samsum, get_preprocessed_summscreen
+from data import (
+    get_preprocessed_samsum,
+    get_preprocessed_summscreen, 
+    get_preprocessed_mediasum,
+    DataCollatorForSeq2Seq,
+)
 from datasets import Dataset
 import pdb
 import nltk
@@ -41,7 +49,8 @@ import nltk
 nltk.download('punkt')
 tqdm.pandas()
 
-SUPPORTED_DATASETS = ['samsum', 'summscreen']
+SUPPORTED_DATASETS = ['samsum', 'summscreen', 'mediasum']
+SUPPORTED_ADAPTER_METHODS = ['attention', 'structured']
 
 # Define and parse arguments.
 @dataclass
@@ -54,14 +63,15 @@ class ScriptArguments:
     dataset_name: Optional[str] = field(
         default='samsum', metadata={"help": "the dataset name", "choices": SUPPORTED_DATASETS}
     )
-    # do_train: Optional[bool] = field(default=True, metadata={"help": "use 'wandb' to log with wandb"})
+    do_train: Optional[bool] = field(default=False, metadata={"help": "Whether to perform training"})
+    do_eval: Optional[bool] = field(default=False, metadata={"help": "Whether to perform evaluation"})
     
     report_to: Optional[str] = field(default="none", metadata={"help": "use 'wandb' to log with wandb"})
     optim: Optional[str] = field(default="adamw_torch", metadata={"help": "The optimizer to use"})
     group_by_length: Optional[bool] = field(default=True, metadata={"help": "Whether or not to group together samples of roughly the same length in the training dataset"})
     learning_rate: Optional[float] = field(default=1e-4, metadata={"help": "the learning rate"})
-    lr_scheduler_type: Optional[str] = field(default='linear')
-    warmup_ratio: Optional[float] = field(default=0.1)
+    lr_scheduler_type: Optional[str] = field(default='constant_with_warmup')
+    warmup_steps: Optional[float] = field(default=20)
     batch_size: Optional[int] = field(default=2, metadata={"help": "the batch size for training"})
     eval_batch_size: Optional[int] = field(default=2, metadata={"help": "the batch size for evaluation"})
     gradient_checkpointing: Optional[bool] = field(default=False, metadata={"help": "Use gradient checkpointing to save memory at the expense of slower backward pass."})
@@ -70,22 +80,32 @@ class ScriptArguments:
     )
     load_in_8bit: Optional[bool] = field(default=False, metadata={"help": "load the model in 8 bits precision"})
     load_in_4bit: Optional[bool] = field(default=False, metadata={"help": "load the model in 4 bits precision"})
-    use_peft: Optional[bool] = field(default=True, metadata={"help": "Wether to use PEFT or not to train adapters"})
+    use_lora: Optional[bool] = field(default=False, metadata={"help": "Whether to add LoRA"})
+    adapter_method: Optional[str] = field(default='lora', metadata={"help": "Adapter method to use", "choices": SUPPORTED_ADAPTER_METHODS})
     trust_remote_code: Optional[bool] = field(default=False, metadata={"help": "Enable `trust_remote_code`"})
     output_dir: Optional[str] = field(default="output", metadata={"help": "the output directory"})
+    checkpoint_dir: Optional[str] = field(default=None, metadata={"help": "the checkpoint directory for evaluation"})
     logging_steps: Optional[int] = field(default=5, metadata={"help": "the number of logging steps"})
     num_train_epochs: Optional[int] = field(default=3, metadata={"help": "the number of training epochs"})
     evaluation_strategy: Optional[str] = field(default='epoch', metadata={"help": "The evaluation strategy to adopt during training."})
     save_strategy: Optional[str] = field(default='epoch', metadata={"help": "The checkpoint save strategy to adopt during training."})
     push_to_hub: Optional[bool] = field(default=False, metadata={"help": "Push the model to HF Hub"})
     hub_model_id: Optional[str] = field(default="mistral-7b-finetuned-summarization", metadata={"help": "The name of the model on HF Hub"})
-
+    resume_from_checkpoint: Optional[str] = field(default=None, metadata={"help": "The path to folder with a valid checkpoint to load from."})
+    
+    # Our defined arguments
+    adapter_gate_type: Optional[str] = field(default='sigmoid', metadata={"choices": ['sigmoid', 'tanh']})
+    
+    
 def peft_module_casting_to_f16(model):
     from peft.tuners.tuners_utils import BaseTunerLayer
 
     for name, module in model.named_modules():
         if isinstance(module, BaseTunerLayer):
             module = module.to(torch.float16)
+        if 'adapter' in name:
+            if hasattr(module, "weight"):
+                module = module.to(torch.float16)
         if any(x in name for x in ["lm_head", "embed_tokens", "wte", "wpe"]):
             if hasattr(module, "weight"):
                 if module.weight.dtype == torch.float32:
@@ -95,7 +115,8 @@ def init_trainer(script_args: ScriptArguments,
                  train_dataset: Optional[Dataset] = None,
                  eval_dataset: Optional[Dataset] = None,
                  compute_metrics: Optional[Callable] = None,
-                 data_collator: Optional[Callable] = None):
+                 data_collator: Optional[Callable] = None,
+                 eval_only: bool = False):
     if script_args.load_in_8bit and script_args.load_in_4bit:
         raise ValueError("You can't load the model in 8 bits and 4 bits at the same time")
     elif script_args.load_in_8bit or script_args.load_in_4bit:
@@ -110,38 +131,57 @@ def init_trainer(script_args: ScriptArguments,
         quantization_config = None
         torch_dtype = torch.float16
     
-    model = AutoModelForCausalLM.from_pretrained(
+    
+    
+    if script_args.adapter_method == 'attention':
+        adapter_config = mistral_adapter_layer_config
+    elif script_args.adapter_method == 'structured':
+        adapter_config = MistralAdapterConfig(gate_type=script_args.adapter_gate_type)
+    else:
+        adapter_config = None
+    
+    model = MistralForCausalLM.from_pretrained(
         script_args.model_name,
         quantization_config=quantization_config,
         device_map=device_map,
         trust_remote_code=script_args.trust_remote_code,
         torch_dtype=torch_dtype,
         attn_implementation="flash_attention_2",
+        use_cache=False,
+        adapter_config=adapter_config,
     )
-    if script_args.use_peft:
-        model.enable_input_require_grads()
-        peft_config = LoraConfig(task_type=TaskType.CAUSAL_LM, inference_mode=False, r=8, lora_alpha=32, lora_dropout=0.1)
+    
+    model.enable_input_require_grads()
+    if script_args.use_lora:
+        peft_config = LoraConfig(task_type=TaskType.CAUSAL_LM, inference_mode=False, r=8, lora_alpha=32, lora_dropout=0.1, modules_to_save=['adapter'])
         model = get_peft_model(model, peft_config)
-        model.print_trainable_parameters()
+
+    if script_args.adapter_method is not None:
+        # peft_module_casting_to_f16(model)
+        for name, param in model.model.named_parameters():
+            if 'adapter' in name:
+                param.requires_grad = True
+    model.print_trainable_parameters()
     
     generation_config = GenerationConfig(
-        max_new_tokens=200,
+        max_new_tokens=300,
         do_sample=False,
         num_beams=1,
         eos_token_id=tokenizer.eos_token_id,
         pad_token_id=tokenizer.eos_token_id,
     )
 
+    prediction_loss_only = not eval_only
     # Step 3: Define the training arguments
     training_args = Seq2SeqTrainingArguments(
         output_dir=script_args.output_dir,
         per_device_train_batch_size=script_args.batch_size,
         per_device_eval_batch_size=script_args.eval_batch_size,
         gradient_accumulation_steps=script_args.gradient_accumulation_steps,
-        gradient_checkpointing=True,
+        gradient_checkpointing=script_args.gradient_checkpointing,
         learning_rate=script_args.learning_rate,
         lr_scheduler_type=script_args.lr_scheduler_type,
-        warmup_ratio=script_args.warmup_ratio,
+        warmup_steps=script_args.warmup_steps,
         logging_steps=script_args.logging_steps,
         num_train_epochs=script_args.num_train_epochs,
         report_to=script_args.report_to,
@@ -154,7 +194,8 @@ def init_trainer(script_args: ScriptArguments,
         logging_first_step=True,
         generation_config=generation_config,
         predict_with_generate=True,
-        load_best_model_at_end=True,
+        remove_unused_columns=True,
+        prediction_loss_only=prediction_loss_only,
     )
     
     # Define the trainer
@@ -169,6 +210,31 @@ def init_trainer(script_args: ScriptArguments,
     )
     return trainer
 
+class StopSequenceRepeatCriteria(StoppingCriteria):
+
+    def __init__(self, tokenizer, stop_sequences=[], max_repeat=None):
+        self.tokenizer = tokenizer
+        self.stop_sequences = stop_sequences
+        self.max_repeat = max_repeat
+
+    def __call__(self, input_ids: torch.LongTensor, scores: torch.FloatTensor):
+        # not compatible with batch size > 1
+        if input_ids.shape[0] > 1:
+            return False
+        
+        input_ids = input_ids[0]
+        
+        # Check if last `max_repeat` tokens are the same
+        if torch.unique(input_ids[-self.max_repeat:]).numel() == 1:
+            return True
+
+        # Check if generation ends with any of the `stop_sequences ``
+        decoded_string = self.tokenizer.decode(input_ids)
+        for stop in self.stop_sequences:
+            if decoded_string.endswith(stop):
+                return True
+        return False
+
 if __name__ == "__main__":
     parser = HfArgumentParser(ScriptArguments)
     script_args = parser.parse_args_into_dataclasses()[0]
@@ -176,10 +242,16 @@ if __name__ == "__main__":
     # Step 1: Load the dataset
     tokenizer = AutoTokenizer.from_pretrained(script_args.model_name, padding_side="left")
     tokenizer.pad_token_id = tokenizer.eos_token_id
+    return_token_type_ids = (script_args.adapter_method == 'structured')
     if script_args.dataset_name == 'samsum':
-        dataset = get_preprocessed_samsum(tokenizer)
+        dataset = get_preprocessed_samsum(tokenizer, return_token_type_ids=return_token_type_ids)
     elif script_args.dataset_name == 'summscreen':
-        dataset = get_preprocessed_summscreen(tokenizer)
+        dataset = get_preprocessed_summscreen(tokenizer, return_token_type_ids=return_token_type_ids)
+    elif script_args.dataset_name == 'mediasum':
+        dataset = get_preprocessed_mediasum(tokenizer, return_token_type_ids=return_token_type_ids)
+    else:
+        raise NotImplementedError(f"Dataset {script_args.dataset_name} not supported.")
+
     data_collator = DataCollatorForSeq2Seq(tokenizer)
 
     rouge = evaluate.load('rouge')
@@ -187,6 +259,7 @@ if __name__ == "__main__":
         preds, labels = eval_preds
 
         # decode preds and labels
+        preds = np.where(preds != -100, preds, tokenizer.pad_token_id)
         labels = np.where(labels != -100, labels, tokenizer.pad_token_id)
         decoded_preds = tokenizer.batch_decode(preds, skip_special_tokens=True)
         decoded_labels = tokenizer.batch_decode(labels, skip_special_tokens=True)
@@ -198,29 +271,87 @@ if __name__ == "__main__":
         return result
 
     # Initialize the trainer
-    trainer = init_trainer(script_args,
-                           dataset['train'],
-                           dataset['validation'],
-                           compute_metrics,
-                           data_collator)
-    trainer.train()
-    trainer.accelerator.wait_for_everyone()
+    if script_args.do_train:
+        trainer = init_trainer(script_args,
+                               dataset['train'],
+                               dataset['validation'],
+                               compute_metrics,
+                               data_collator)
+        trainer.train(resume_from_checkpoint=script_args.resume_from_checkpoint)
+        trainer.accelerator.wait_for_everyone()
+        del trainer
+    
+    if script_args.do_eval:
+        # # Debugging
+        # from torch.utils.data import Subset
+        # test_dataset = Subset(test_dataset, list(range(10)))
+        test_dataset = dataset['test']
+        stopping_criteria = StopSequenceRepeatCriteria(tokenizer=tokenizer,
+                                                       stop_sequences=['\n', '\r', '  '],
+                                                       max_repeat=4)
+        
+        if script_args.checkpoint_dir is None:
+            checkpoint_paths = [os.path.join(script_args.output_dir, dir) for dir in os.listdir(script_args.output_dir)]
+            checkpoint_paths = [path for path in checkpoint_paths if os.path.isdir(path)]
+            checkpoint_paths = sorted(checkpoint_paths, key=lambda x: int(x.split('-')[-1]), reverse=True)
+        else:
+            checkpoint_paths = [os.path.join(script_args.output_dir, script_args.checkpoint_dir)]
+            
+        for checkpoint_path in checkpoint_paths:
+                
+            prediction_output_file = os.path.join(checkpoint_path, 'evaluation_output.pt')
+            
+            if not os.path.isfile(prediction_output_file):
+                
+                # Initialize a new trainer due to bug in loading checkpoint after `predict`
+                torch.cuda.empty_cache()
+                gc.collect()
+                trainer = init_trainer(script_args,
+                                        dataset['train'],
+                                        dataset['validation'],
+                                        compute_metrics,
+                                        data_collator,
+                                        eval_only=True)
 
-    for checkpoint_dir in os.listdir(script_args.output_dir):
-        checkpoint_path = os.path.join(script_args.output_dir, checkpoint_dir)
-        if os.path.isdir(checkpoint_path):
+                # TODO: This should be refactored into method `predict_from_checkpoint`
+                trainer._load_from_checkpoint(checkpoint_path)
+                print(f"Successfully loaded checkpoint from \"{checkpoint_path}\".")
+                
 
-            # Initialize a new trainer due to bug in loading checkpoint after `predict`
-            del trainer
-            torch.cuda.empty_cache()
-            gc.collect()
-            trainer = init_trainer(script_args, compute_metrics)
+                prediction_output = trainer.predict(test_dataset=test_dataset,
+                                                    stopping_criteria=StoppingCriteriaList([stopping_criteria]))
 
-            # TODO: This should be refactored into method `predict_from_checkpoint`
-            trainer._load_from_checkpoint(checkpoint_path)
+                if trainer.accelerator.is_main_process:
+                    print(f"Prediction results from checkpoint: \"{checkpoint_path}\"")
+                    print(prediction_output)
+                    torch.save(prediction_output, prediction_output_file)
 
-            prediction_output = trainer.predict(test_dataset=dataset['test'])
-            if trainer.accelerator.is_main_process:
-                print(f"Prediction results from checkpoint: {checkpoint_path}:")
-                print(prediction_output)
-            trainer.accelerator.wait_for_everyone()
+                trainer.accelerator.wait_for_everyone()
+                del trainer
+
+            else:
+                prediction_output = torch.load(prediction_output_file)
+                print(f"Successfully loaded prediction output: \"{prediction_output_file}\"")
+                
+            # Save generated results in JSON format
+            preds = prediction_output.predictions
+            preds = np.where(preds != -100, preds, tokenizer.pad_token_id)
+            predicted_summary = tokenizer.batch_decode(preds, skip_special_tokens=True)
+            predictions = []
+            for idx, example in enumerate(test_dataset):
+                
+                if script_args.dataset_name == 'samsum':
+                    dialogue = example['dialogue']
+                    summary = example['summary']
+                elif script_args.dataset_name == 'summscreen':
+                    dialogue = '\n'.join(example['Transcript'])
+                    summary = ' '.join(example['Recap'])
+
+                predictions.append({
+                    'dialogue': dialogue,
+                    'summary': summary,
+                    'prediction': predicted_summary[idx],
+                })
+
+            with open(os.path.join(checkpoint_path, 'predictions.json'), 'w+') as f:
+                json.dump(predictions, f, indent=4)
