@@ -21,7 +21,12 @@ from transformers.utils import (
 
 
 _import_structure = {
-    "configuration_mistral": ["MISTRAL_PRETRAINED_CONFIG_ARCHIVE_MAP", "MistralConfig", "MistralAdapterConfig", "mistral_adapter_layer_config"],
+    "configuration_mistral": [
+        "MISTRAL_PRETRAINED_CONFIG_ARCHIVE_MAP",
+        "MistralConfig",
+        "StructuredAdapterConfig",
+        "AttentionAdapterConfig",
+    ]
 }
 
 
@@ -43,8 +48,8 @@ if TYPE_CHECKING:
     from .configuration_mistral import (
         MISTRAL_PRETRAINED_CONFIG_ARCHIVE_MAP,
         MistralConfig,
-        MistralAdapterConfig,
-        mistral_adapter_layer_config,
+        StructuredAdapterConfig,
+        AttentionAdapterConfig,
     )
 
     try:

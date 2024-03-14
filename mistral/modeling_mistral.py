@@ -42,9 +42,9 @@ from transformers.utils import (
     logging,
     replace_return_docstrings,
 )
-from .configuration_mistral import MistralConfig, MistralAdapterConfig
+from .configuration_mistral import MistralConfig, AttentionAdapterConfig, StructuredAdapterConfig
 from .structured_adapter import MistralStructuredAdapter
-from .attention_adapter import MistralDecoderAdapterLayer
+from .attention_adapter import AttentionAdapter
 import pdb
 
 if is_flash_attn_2_available():
@@ -710,7 +710,7 @@ MISTRAL_ATTENTION_CLASSES = {
 
 
 class MistralDecoderLayer(nn.Module):
-    def __init__(self, config: MistralConfig, layer_idx: int, adapter_config: Optional[Union[MistralAdapterConfig, MistralConfig]] = None):
+    def __init__(self, config: MistralConfig, layer_idx: int, adapter_config: Optional[Union[AttentionAdapterConfig, StructuredAdapterConfig]] = None):
         super().__init__()
         self.hidden_size = config.hidden_size
 
@@ -722,10 +722,11 @@ class MistralDecoderLayer(nn.Module):
         
         self.adapter = None
         if adapter_config is not None:
-            if isinstance(adapter_config, MistralConfig):
-                self.adapter_type = 'attention'
-                self.adapter = MistralDecoderAdapterLayer(adapter_config, layer_idx)
-            elif isinstance(adapter_config, MistralAdapterConfig):
+            if isinstance(adapter_config, AttentionAdapterConfig):
+                if len(adapter_config.layers) and (layer_idx in adapter_config.layers):
+                    self.adapter_type = 'attention'
+                    self.adapter = AttentionAdapter(self.hidden_size, adapter_config, layer_idx)
+            elif isinstance(adapter_config, StructuredAdapterConfig):
                 if len(adapter_config.layers) and (layer_idx in adapter_config.layers):
                     self.adapter_type = 'structured'
                     self.adapter = MistralStructuredAdapter(self.hidden_size, adapter_config, layer_idx)
@@ -791,9 +792,7 @@ class MistralDecoderLayer(nn.Module):
         
         if adapter_output is not None:
             if self.adapter_type == 'attention':
-                raise NotImplementedError("Attention adapter not implemented!")
-                # adapter_residual = torch.tanh(self.adapter_gate) * adapter_output[0]
-                # hidden_states = adapter_residual + hidden_states
+                hidden_states += adapter_output
             else:
                 batch_size = hidden_states.shape[0]
                 for batch_idx in range(batch_size):
@@ -971,7 +970,9 @@ class MistralModel(MistralPreTrainedModel):
         config: MistralConfig
     """
 
-    def __init__(self, config: MistralConfig, adapter_config: Optional[MistralAdapterConfig] = None):
+    def __init__(self,
+                 config: MistralConfig,
+                 adapter_config: Optional[Union[StructuredAdapterConfig, AttentionAdapterConfig]] = None):
         super().__init__(config)
         self.padding_idx = config.pad_token_id
         self.vocab_size = config.vocab_size
@@ -1145,7 +1146,9 @@ class MistralModel(MistralPreTrainedModel):
 class MistralForCausalLM(MistralPreTrainedModel):
     _tied_weights_keys = ["lm_head.weight"]
 
-    def __init__(self, config: MistralAdapterConfig, adapter_config: Optional[MistralAdapterConfig] = None):
+    def __init__(self, 
+                 config: MistralConfig,
+                 adapter_config: Optional[Union[StructuredAdapterConfig, AttentionAdapterConfig]] = None):
         super().__init__(config)
         self.model = MistralModel(config, adapter_config)
         self.vocab_size = config.vocab_size
@@ -1349,7 +1352,9 @@ class MistralForCausalLM(MistralPreTrainedModel):
 )
 # Copied from transformers.models.llama.modeling_llama.LlamaForSequenceClassification with Llama->Mistral, LLAMA->MISTRAL
 class MistralForSequenceClassification(MistralPreTrainedModel):
-    def __init__(self, config: MistralAdapterConfig, adapter_config: Optional[MistralAdapterConfig] = None):
+    def __init__(self,
+                 config: MistralConfig,
+                 adapter_config: Optional[Union[StructuredAdapterConfig, AttentionAdapterConfig]] = None):
         super().__init__(config)
         self.num_labels = config.num_labels
         self.model = MistralModel(config)

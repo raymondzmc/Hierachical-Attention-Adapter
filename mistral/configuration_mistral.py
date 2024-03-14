@@ -28,8 +28,8 @@ MISTRAL_PRETRAINED_CONFIG_ARCHIVE_MAP = {
 }
 
 @dataclass
-class MistralAdapterConfig:
-    turn_embedding_method: str = field(default='mean')
+class StructuredAdapterConfig:
+    pooling_method: str = field(default='mean')
     hidden_size: int = field(default=768)
     num_attention_heads: int = field(default=12)
     attention_dropout: float = field(default=0.0)
@@ -37,6 +37,18 @@ class MistralAdapterConfig:
     use_gate: bool = True
     gate_type: str = 'sigmoid'
     layers: List[int] = field(default_factory=lambda: [30, 29, 28, 27])
+
+
+@dataclass
+class AttentionAdapterConfig:
+    hidden_size: int = field(default=768)
+    num_attention_heads: int = field(default=12)
+    attention_dropout: float = field(default=0.0)
+    dropout: float = field(default=0.1)
+    use_gate: bool = True
+    gate_type: str = 'sigmoid'
+    layers: List[int] = field(default_factory=lambda: [30, 29, 28, 27])
+
 
 class MistralConfig(PretrainedConfig):
     r"""

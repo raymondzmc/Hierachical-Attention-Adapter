@@ -21,7 +21,7 @@ from accelerate import Accelerator, dispatch_model, infer_auto_device_map, load_
 from accelerate.utils import get_balanced_memory
 from peft import LoraConfig, TaskType, get_peft_model
 from tqdm import tqdm
-from mistral import MistralForCausalLM, MistralAdapterConfig, mistral_adapter_layer_config
+from mistral import MistralForCausalLM, StructuredAdapterConfig, AttentionAdapterConfig
 from transformers import (
     AutoModelForCausalLM, 
     HfArgumentParser,
@@ -33,6 +33,7 @@ from transformers import (
     StoppingCriteria,
 )
 import evaluate
+from metrics import f1_score, exact_match_score, metric_max_over_ground_truths
 
 import numpy as np
 from seq2seq_trainer import Seq2SeqTrainer
@@ -40,6 +41,7 @@ from data import (
     get_preprocessed_samsum,
     get_preprocessed_summscreen, 
     get_preprocessed_mediasum,
+    get_preprocessed_friendsqa,
     DataCollatorForSeq2Seq,
 )
 from datasets import Dataset
@@ -49,7 +51,7 @@ import nltk
 nltk.download('punkt')
 tqdm.pandas()
 
-SUPPORTED_DATASETS = ['samsum', 'summscreen', 'mediasum']
+SUPPORTED_DATASETS = ['samsum', 'summscreen', 'mediasum', 'friendsqa']
 SUPPORTED_ADAPTER_METHODS = ['attention', 'structured']
 
 # Define and parse arguments.
@@ -95,6 +97,7 @@ class ScriptArguments:
     
     # Our defined arguments
     adapter_gate_type: Optional[str] = field(default='sigmoid', metadata={"choices": ['sigmoid', 'tanh']})
+    pooling_method: Optional[str] = field(default='mean', metadata={"choices": ['mean', 'attention']})
     
     
 def peft_module_casting_to_f16(model):
@@ -134,9 +137,10 @@ def init_trainer(script_args: ScriptArguments,
     
     
     if script_args.adapter_method == 'attention':
-        adapter_config = mistral_adapter_layer_config
+        adapter_config = AttentionAdapterConfig(gate_type=script_args.adapter_gate_type)
     elif script_args.adapter_method == 'structured':
-        adapter_config = MistralAdapterConfig(gate_type=script_args.adapter_gate_type)
+        adapter_config = StructuredAdapterConfig(gate_type=script_args.adapter_gate_type,
+                                                 pooling_method=script_args.pooling_method)
     else:
         adapter_config = None
     
@@ -157,7 +161,7 @@ def init_trainer(script_args: ScriptArguments,
         model = get_peft_model(model, peft_config)
 
     if script_args.adapter_method is not None:
-        # peft_module_casting_to_f16(model)
+        peft_module_casting_to_f16(model)
         for name, param in model.model.named_parameters():
             if 'adapter' in name:
                 param.requires_grad = True
@@ -242,20 +246,9 @@ if __name__ == "__main__":
     # Step 1: Load the dataset
     tokenizer = AutoTokenizer.from_pretrained(script_args.model_name, padding_side="left")
     tokenizer.pad_token_id = tokenizer.eos_token_id
-    return_token_type_ids = (script_args.adapter_method == 'structured')
-    if script_args.dataset_name == 'samsum':
-        dataset = get_preprocessed_samsum(tokenizer, return_token_type_ids=return_token_type_ids)
-    elif script_args.dataset_name == 'summscreen':
-        dataset = get_preprocessed_summscreen(tokenizer, return_token_type_ids=return_token_type_ids)
-    elif script_args.dataset_name == 'mediasum':
-        dataset = get_preprocessed_mediasum(tokenizer, return_token_type_ids=return_token_type_ids)
-    else:
-        raise NotImplementedError(f"Dataset {script_args.dataset_name} not supported.")
-
-    data_collator = DataCollatorForSeq2Seq(tokenizer)
-
+    
     rouge = evaluate.load('rouge')
-    def compute_metrics(eval_preds):
+    def summarization_metrics(eval_preds):
         preds, labels = eval_preds
 
         # decode preds and labels
@@ -269,6 +262,40 @@ if __name__ == "__main__":
         decoded_labels = ["\n".join(nltk.sent_tokenize(label.strip())) for label in decoded_labels]
         result = rouge.compute(predictions=decoded_preds, references=decoded_labels)
         return result
+    
+    def qa_metrics(eval_preds):
+        preds, labels = eval_preds
+        preds = np.where(preds != -100, preds, tokenizer.pad_token_id)
+        labels = np.where(labels != -100, labels, tokenizer.pad_token_id)
+        decoded_preds = tokenizer.batch_decode(preds, skip_special_tokens=True)
+        decoded_labels = tokenizer.batch_decode(labels, skip_special_tokens=True)
+        f1_scores = [f1_score(pred, label) for pred, label in zip(decoded_preds, decoded_labels)]
+        exact_match_scores = [exact_match_score(pred, label) for pred, label in zip(decoded_preds, decoded_labels)]
+        return {'f1': 100 * np.mean(f1_scores),
+                'exact_match': 100 * np.mean(exact_match_scores)}
+    
+    
+    return_token_type_ids = (script_args.adapter_method == 'structured')
+    if script_args.dataset_name == 'samsum':
+        dataset = get_preprocessed_samsum(tokenizer, return_token_type_ids=return_token_type_ids)
+        compute_metrics = summarization_metrics
+    elif script_args.dataset_name == 'summscreen':
+        dataset = get_preprocessed_summscreen(tokenizer, return_token_type_ids=return_token_type_ids)
+        compute_metrics = summarization_metrics
+    elif script_args.dataset_name == 'mediasum':
+        dataset = get_preprocessed_mediasum(tokenizer, return_token_type_ids=return_token_type_ids)
+        compute_metrics = summarization_metrics
+    elif script_args.dataset_name == 'friendsqa':
+        dataset = get_preprocessed_friendsqa(tokenizer, return_token_type_ids=return_token_type_ids)
+        compute_metrics = qa_metrics
+    else:
+        raise NotImplementedError(f"Dataset {script_args.dataset_name} not supported.")
+
+    data_collator = DataCollatorForSeq2Seq(tokenizer)
+    
+    stopping_criteria = StopSequenceRepeatCriteria(tokenizer=tokenizer,
+                                                   stop_sequences=['\n', '\r', '  '],
+                                                   max_repeat=4)
 
     # Initialize the trainer
     if script_args.do_train:
@@ -279,16 +306,20 @@ if __name__ == "__main__":
                                data_collator)
         trainer.train(resume_from_checkpoint=script_args.resume_from_checkpoint)
         trainer.accelerator.wait_for_everyone()
+        
+        # prediction_output = trainer.predict(test_dataset=dataset['test'],
+        #                                     stopping_criteria=StoppingCriteriaList([stopping_criteria]))
+        # if trainer.accelerator.is_main_process:
+        #     print(prediction_output)
+        #     torch.save(prediction_output, os.path.join(script_args.output_dir, 'evaluation_output.pt'))
         del trainer
     
     if script_args.do_eval:
+        test_dataset = dataset['test']
         # # Debugging
         # from torch.utils.data import Subset
         # test_dataset = Subset(test_dataset, list(range(10)))
-        test_dataset = dataset['test']
-        stopping_criteria = StopSequenceRepeatCriteria(tokenizer=tokenizer,
-                                                       stop_sequences=['\n', '\r', '  '],
-                                                       max_repeat=4)
+        
         
         if script_args.checkpoint_dir is None:
             checkpoint_paths = [os.path.join(script_args.output_dir, dir) for dir in os.listdir(script_args.output_dir)]
@@ -307,17 +338,15 @@ if __name__ == "__main__":
                 torch.cuda.empty_cache()
                 gc.collect()
                 trainer = init_trainer(script_args,
-                                        dataset['train'],
-                                        dataset['validation'],
-                                        compute_metrics,
-                                        data_collator,
-                                        eval_only=True)
+                                       dataset['train'],
+                                       dataset['validation'],
+                                       compute_metrics,
+                                       data_collator,
+                                       eval_only=True)
 
                 # TODO: This should be refactored into method `predict_from_checkpoint`
                 trainer._load_from_checkpoint(checkpoint_path)
                 print(f"Successfully loaded checkpoint from \"{checkpoint_path}\".")
-                
-
                 prediction_output = trainer.predict(test_dataset=test_dataset,
                                                     stopping_criteria=StoppingCriteriaList([stopping_criteria]))
 
@@ -336,22 +365,39 @@ if __name__ == "__main__":
             # Save generated results in JSON format
             preds = prediction_output.predictions
             preds = np.where(preds != -100, preds, tokenizer.pad_token_id)
-            predicted_summary = tokenizer.batch_decode(preds, skip_special_tokens=True)
-            predictions = []
+            predictions = tokenizer.batch_decode(preds, skip_special_tokens=True)
+            results = []
             for idx, example in enumerate(test_dataset):
-                
                 if script_args.dataset_name == 'samsum':
-                    dialogue = example['dialogue']
-                    summary = example['summary']
+                    result = {
+                        'dialogue': example['dialogue'],
+                        'summary': example['summary'],
+                        'prediction': predictions[idx],
+                    }
                 elif script_args.dataset_name == 'summscreen':
-                    dialogue = '\n'.join(example['Transcript'])
-                    summary = ' '.join(example['Recap'])
+                    result = {
+                        'dialogue': '\n'.join(example['Transcript']),
+                        'summary': ' '.join(example['Recap']),
+                        'prediction': predictions[idx],
+                    }
+                elif script_args.dataset_name == 'friendsqa':
+                    prediction = predictions[idx]
+                    answers = example['answers']
+                    result = {
+                        'dialogue': '\n'.join(example['dialogue']),
+                        'question': example['question'],
+                        'answers': answers,
+                        'prediction': prediction,
+                        'exact_match': metric_max_over_ground_truths(exact_match_score, prediction, answers),
+                        'f1': metric_max_over_ground_truths(f1_score, prediction, answers),
+                    }
+                results.append(result)
+            
+            # Recompute results for all possible answers
+            if script_args.dataset_name == 'friendsqa':
+                avg_exact_match_score = 100 * (len([res for res in results if res['exact_match']]) / len(results))
+                avg_f1_score = 100 * np.mean([res['f1'] for res in results])
+                print(f"[Over All Answers] Exact Match: {avg_exact_match_score}, F1: {avg_f1_score}")
 
-                predictions.append({
-                    'dialogue': dialogue,
-                    'summary': summary,
-                    'prediction': predicted_summary[idx],
-                })
-
-            with open(os.path.join(checkpoint_path, 'predictions.json'), 'w+') as f:
-                json.dump(predictions, f, indent=4)
+            with open(os.path.join(checkpoint_path, 'prediction_results.json'), 'w+') as f:
+                json.dump(results, f, indent=4)

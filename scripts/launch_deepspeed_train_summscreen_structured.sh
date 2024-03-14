@@ -22,3 +22,4 @@ CUDA_VISIBLE_DEVICES=0 python train.py --dataset_name summscreen --peft_method s
 CUDA_VISIBLE_DEVICES=1 python train.py --dataset_name summscreen --peft_method structured  \
                                        --eval_batch_size 1 --output_dir $OUTPUT_DIR \
                                        --do_eval --checkpoint_dir checkpoint-1182 >> "$OUTPUT_DIR/test_log_1182.txt"
+
