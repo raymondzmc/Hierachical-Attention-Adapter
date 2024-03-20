@@ -14,11 +14,11 @@ class MistralStructuredAdapter(nn.Module):
         self.config = config
         self.dropout = config.dropout
         self.layer_idx = layer_idx
+        self.pooling_method = config.pooling_method
+        # self.causal_self_attention = config.causal_self_attention
         
-        if config.pooling_method == "attention":
+        if self.pooling_method == "attention":
             self.turn_self_attention = DialogueTurnAttention(model_hidden_size, config.hidden_size)
-            self.fc0 = nn.Linear(model_hidden_size, config.hidden_size)
-            self.turn_self_attention_layer_norm = nn.LayerNorm(config.hidden_size)
         
         self.fc1 = nn.Linear(model_hidden_size, config.hidden_size)
         self.dialogue_self_attention = Attention(
@@ -74,26 +74,17 @@ class MistralStructuredAdapter(nn.Module):
             for uid in unique_ids:
                 mask = token_type_ids[i] == uid
                 turn_masks.append(mask)
-                # try:
-                #     # self.fc1(hidden_states)
-                #     # TODO: This causes inplace operation (no grad)
-                #     selected_states = hidden_states[i, mask]
-                # except:
-                #     pdb.set_trace()
-                # if self.config.pooling_method == 'mean':
-                #     turn_embedding = selected_states.mean(dim=0)
-                # elif self.config.pooling_method == 'attention':
-                #     turn_embedding = selected_states.mean(dim=0)
-                # else:
-                #     raise NotImplementedError(
-                #         f"Unsupported method: {self.config.turn_embedding_method}.")
-                # dialogue_hidden_states.append(turn_embedding)
-            turn_masks = torch.stack(turn_masks).transpose(0, 1)
-            dialogue_hidden_states = self.turn_self_attention(hidden_states[i].unsqueeze(0), turn_masks.unsqueeze(0))
-            # pdb.set_trace()
 
-            # dialogue_hidden_states = torch.stack(dialogue_hidden_states).unsqueeze(0)
-            
+            turn_masks = torch.stack(turn_masks)
+
+            if self.pooling_method == 'attention':
+                turn_masks = turn_masks.transpose(0, 1)
+                dialogue_hidden_states = self.turn_self_attention(hidden_states[i].unsqueeze(0), turn_masks.unsqueeze(0))
+            elif self.pooling_method == 'mean':
+                dialogue_hidden_states = torch.stack([hidden_states[i, mask].mean(dim=0) for mask in turn_masks]).unsqueeze(0)
+            elif self.pooling_method == 'last':
+                dialogue_hidden_states = torch.stack([hidden_states[i, mask][-1] for mask in turn_masks]).unsqueeze(0)
+
             # Dialogue self-attention
             dialogue_hidden_states = self.fc1(dialogue_hidden_states)
             dialogue_hidden_states = self.dialogue_self_attention(dialogue_hidden_states)[0]
@@ -102,7 +93,7 @@ class MistralStructuredAdapter(nn.Module):
             
 
             summary_mask = (token_type_ids[i] == -1)
-            summary_hidden_states = hidden_states[i, summary_mask].unsqueeze(0)
+            summary_hidden_states = hidden_states[i].unsqueeze(0)
             summary_len = summary_hidden_states.shape[1]
 
             # Summary self-attention
@@ -132,9 +123,9 @@ class MistralStructuredAdapter(nn.Module):
             
             if self.output_gate is not None:
                 if self.gate_type == 'sigmoid':
-                    gate = torch.sigmoid(self.output_gate(hidden_states[i, summary_mask]))
+                    gate = torch.sigmoid(self.output_gate(hidden_states[i]))
                 elif self.gate_type == 'tanh':
-                    gate = torch.tanh(self.output_gate(hidden_states[i, summary_mask]))
+                    gate = torch.tanh(self.output_gate(hidden_states[i]))
                 summary_hidden_states = gate * summary_hidden_states
 
             output.append((summary_hidden_states.to(hidden_states.dtype), summary_mask))

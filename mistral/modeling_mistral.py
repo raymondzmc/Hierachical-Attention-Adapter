@@ -721,7 +721,9 @@ class MistralDecoderLayer(nn.Module):
         self.post_attention_layernorm = MistralRMSNorm(config.hidden_size, eps=config.rms_norm_eps)
         
         self.adapter = None
+        self.adapter_config = None
         if adapter_config is not None:
+            self.adapter_config = adapter_config
             if isinstance(adapter_config, AttentionAdapterConfig):
                 if len(adapter_config.layers) and (layer_idx in adapter_config.layers):
                     self.adapter_type = 'attention'
@@ -763,6 +765,15 @@ class MistralDecoderLayer(nn.Module):
         residual = hidden_states
 
         hidden_states = self.input_layernorm(hidden_states)
+        
+        # Mistral Adapter
+        if self.adapter is not None and self.adapter_config.injection_location == 'attention':
+            if self.adapter_type == 'attention':
+                adapter_output = self.adapter(hidden_states)
+            else:
+                adapter_output = self.adapter(hidden_states, token_type_ids)
+        else:
+            adapter_output = None
 
         # Self Attention
         hidden_states, self_attn_weights, present_key_value = self.self_attn(
@@ -774,9 +785,16 @@ class MistralDecoderLayer(nn.Module):
             use_cache=use_cache,
         )
         hidden_states = residual + hidden_states
+        if adapter_output is not None and self.adapter_config.injection_location == 'attention':
+            if self.adapter_type == 'attention':
+                hidden_states += adapter_output
+            else:
+                batch_size = hidden_states.shape[0]
+                for batch_idx in range(batch_size):
+                    adapter_residual, summary_mask = adapter_output[batch_idx]
+                    hidden_states += adapter_residual
         
-        # Mistral Adapter
-        if self.adapter is not None:
+        if self.adapter is not None and self.adapter_config.injection_location == 'fc':
             if self.adapter_type == 'attention':
                 adapter_output = self.adapter(hidden_states)
             else:
@@ -790,14 +808,14 @@ class MistralDecoderLayer(nn.Module):
         hidden_states = self.mlp(hidden_states)
         hidden_states = residual + hidden_states
         
-        if adapter_output is not None:
+        if adapter_output is not None and self.adapter_config.injection_location == 'fc':
             if self.adapter_type == 'attention':
                 hidden_states += adapter_output
             else:
                 batch_size = hidden_states.shape[0]
                 for batch_idx in range(batch_size):
                     adapter_residual, summary_mask = adapter_output[batch_idx]
-                    hidden_states[batch_idx, summary_mask] += adapter_residual
+                    hidden_states += adapter_residual
             
 
         outputs = (hidden_states,)

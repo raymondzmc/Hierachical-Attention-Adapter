@@ -19,7 +19,7 @@ from dataclasses import dataclass, field
 from transformers.modeling_utils import unwrap_model
 from accelerate import Accelerator, dispatch_model, infer_auto_device_map, load_checkpoint_and_dispatch
 from accelerate.utils import get_balanced_memory
-from peft import LoraConfig, TaskType, get_peft_model
+from peft import LoraConfig, PrefixTuningConfig, IA3Config, PromptTuningConfig, TaskType, get_peft_model
 from tqdm import tqdm
 from mistral import MistralForCausalLM, StructuredAdapterConfig, AttentionAdapterConfig
 from transformers import (
@@ -83,6 +83,8 @@ class ScriptArguments:
     load_in_8bit: Optional[bool] = field(default=False, metadata={"help": "load the model in 8 bits precision"})
     load_in_4bit: Optional[bool] = field(default=False, metadata={"help": "load the model in 4 bits precision"})
     use_lora: Optional[bool] = field(default=False, metadata={"help": "Whether to add LoRA"})
+    use_prefix: Optional[bool] = field(default=False, metadata={"help": "Whether to add Prefix Tuning"})
+    use_ia3: Optional[bool] = field(default=False, metadata={"help": "Whether to add IA3"})
     adapter_method: Optional[str] = field(default='lora', metadata={"help": "Adapter method to use", "choices": SUPPORTED_ADAPTER_METHODS})
     trust_remote_code: Optional[bool] = field(default=False, metadata={"help": "Enable `trust_remote_code`"})
     output_dir: Optional[str] = field(default="output", metadata={"help": "the output directory"})
@@ -97,7 +99,8 @@ class ScriptArguments:
     
     # Our defined arguments
     adapter_gate_type: Optional[str] = field(default='sigmoid', metadata={"choices": ['sigmoid', 'tanh']})
-    pooling_method: Optional[str] = field(default='mean', metadata={"choices": ['mean', 'attention']})
+    pooling_method: Optional[str] = field(default='mean', metadata={"choices": ['mean', 'attention', 'last']})
+    injection_location: Optional[str] = field(default='attention', metadata={"choices": ['attention', 'fc']})
     
     
 def peft_module_casting_to_f16(model):
@@ -159,16 +162,38 @@ def init_trainer(script_args: ScriptArguments,
     if script_args.use_lora:
         peft_config = LoraConfig(task_type=TaskType.CAUSAL_LM, inference_mode=False, r=8, lora_alpha=32, lora_dropout=0.1, modules_to_save=['adapter'])
         model = get_peft_model(model, peft_config)
+    elif script_args.use_prefix:
+        peft_config = PromptTuningConfig(
+            task_type=TaskType.CAUSAL_LM,
+            num_virtual_tokens=20,
+            token_dim=model.config.hidden_size,
+            num_transformer_submodules=1,
+            num_attention_heads=model.config.num_attention_heads,
+            num_layers=model.config.num_hidden_layers,
+        )
+        model = get_peft_model(model, peft_config)
+    elif script_args.use_ia3:
+        peft_config = IA3Config(
+            peft_type="IA3",
+            task_type=TaskType.CAUSAL_LM,
+            target_modules=["q_proj", "v_proj", "down_proj"],
+            feedforward_modules=["down_proj"],
+        )
+        model = get_peft_model(model, peft_config)
+    else:
+        for name, module in model.named_children():
+            for param in module.parameters():
+                param.requires_grad = False
 
     if script_args.adapter_method is not None:
-        peft_module_casting_to_f16(model)
+        # peft_module_casting_to_f16(model)
         for name, param in model.model.named_parameters():
             if 'adapter' in name:
                 param.requires_grad = True
     model.print_trainable_parameters()
     
     generation_config = GenerationConfig(
-        max_new_tokens=300,
+        max_new_tokens=100,
         do_sample=False,
         num_beams=1,
         eos_token_id=tokenizer.eos_token_id,

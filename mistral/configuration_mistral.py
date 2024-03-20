@@ -37,6 +37,7 @@ class StructuredAdapterConfig:
     use_gate: bool = True
     gate_type: str = 'sigmoid'
     layers: List[int] = field(default_factory=lambda: [30, 29, 28, 27])
+    injection_location = 'attention'
 
 
 @dataclass
