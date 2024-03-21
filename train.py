@@ -165,7 +165,7 @@ def init_trainer(script_args: ScriptArguments,
     elif script_args.use_prefix:
         peft_config = PromptTuningConfig(
             task_type=TaskType.CAUSAL_LM,
-            num_virtual_tokens=20,
+            num_virtual_tokens=100,
             token_dim=model.config.hidden_size,
             num_transformer_submodules=1,
             num_attention_heads=model.config.num_attention_heads,
