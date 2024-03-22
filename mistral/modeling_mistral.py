@@ -726,11 +726,11 @@ class MistralDecoderLayer(nn.Module):
             self.adapter_config = adapter_config
             if isinstance(adapter_config, AttentionAdapterConfig):
                 if len(adapter_config.layers) and (layer_idx in adapter_config.layers):
-                    self.adapter_type = 'attention'
+                    self.adapter_method = 'attention'
                     self.adapter = AttentionAdapter(self.hidden_size, adapter_config, layer_idx)
             elif isinstance(adapter_config, StructuredAdapterConfig):
                 if len(adapter_config.layers) and (layer_idx in adapter_config.layers):
-                    self.adapter_type = 'structured'
+                    self.adapter_method = 'structured'
                     self.adapter = MistralStructuredAdapter(self.hidden_size, adapter_config, layer_idx)
             
 
@@ -766,9 +766,9 @@ class MistralDecoderLayer(nn.Module):
 
         hidden_states = self.input_layernorm(hidden_states)
         
-        # Mistral Adapter
-        if self.adapter is not None and self.adapter_config.injection_location == 'attention':
-            if self.adapter_type == 'attention':
+        # Compute output for adapter parallel to self-attention sub-layer
+        if self.adapter is not None and self.adapter_config.injection_location == 'sa' and self.adapter_config.adapter_type == 'parallel':
+            if self.adapter_method == 'attention':
                 adapter_output = self.adapter(hidden_states)
             else:
                 adapter_output = self.adapter(hidden_states, token_type_ids)
@@ -784,9 +784,18 @@ class MistralDecoderLayer(nn.Module):
             output_attentions=output_attentions,
             use_cache=use_cache,
         )
-        hidden_states = residual + hidden_states
-        if adapter_output is not None and self.adapter_config.injection_location == 'attention':
-            if self.adapter_type == 'attention':
+        
+        # Compute output for adapter sequential to self-attention sub-layer
+        if self.adapter is not None and self.adapter_config.injection_location == 'sa' and self.adapter_config.adapter_type == 'sequential':
+            assert adapter_output is None
+            if self.adapter_method == 'attention':
+                adapter_output = self.adapter(hidden_states)
+            else:
+                adapter_output = self.adapter(hidden_states, token_type_ids)
+        
+        # Add output for adapter sequential or parallel to self-attention sub-layer
+        if adapter_output is not None and self.adapter_config.injection_location == 'sa':
+            if self.adapter_method == 'attention':
                 hidden_states += adapter_output
             else:
                 batch_size = hidden_states.shape[0]
@@ -794,29 +803,45 @@ class MistralDecoderLayer(nn.Module):
                     adapter_residual, summary_mask = adapter_output[batch_idx]
                     hidden_states += adapter_residual
         
-        if self.adapter is not None and self.adapter_config.injection_location == 'fc':
-            if self.adapter_type == 'attention':
+        hidden_states = residual + hidden_states
+
+        
+        residual = hidden_states
+        hidden_states = self.post_attention_layernorm(hidden_states)
+        
+        # Compute output for adapter parallel to MLP sub-layer (after LayerNorm)
+        if self.adapter is not None and self.adapter_config.injection_location == 'mlp' and self.adapter_config.adapter_type == 'parallel':
+            if self.adapter_method == 'attention':
                 adapter_output = self.adapter(hidden_states)
             else:
                 adapter_output = self.adapter(hidden_states, token_type_ids)
         else:
             adapter_output = None
-
-        # Fully Connected
-        residual = hidden_states
-        hidden_states = self.post_attention_layernorm(hidden_states)
-        hidden_states = self.mlp(hidden_states)
-        hidden_states = residual + hidden_states
         
-        if adapter_output is not None and self.adapter_config.injection_location == 'fc':
-            if self.adapter_type == 'attention':
+        
+        # Fully Connected
+        hidden_states = self.mlp(hidden_states)
+        
+        # Compute output for adapter sequential to MLP sub-layer
+        if self.adapter is not None and self.adapter_config.injection_location == 'mlp' and self.adapter_config.adapter_type == 'sequential':
+            assert adapter_output is None
+            if self.adapter_method == 'attention':
+                adapter_output = self.adapter(hidden_states)
+            else:
+                adapter_output = self.adapter(hidden_states, token_type_ids)
+        
+        
+        # Add output for adapter sequential or parallel to MLP sub-layer
+        if adapter_output is not None and self.adapter_config.injection_location == 'mlp':
+            if self.adapter_method == 'attention':
                 hidden_states += adapter_output
             else:
                 batch_size = hidden_states.shape[0]
                 for batch_idx in range(batch_size):
                     adapter_residual, summary_mask = adapter_output[batch_idx]
                     hidden_states += adapter_residual
-            
+        hidden_states = residual + hidden_states
+        
 
         outputs = (hidden_states,)
 

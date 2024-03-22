@@ -19,7 +19,7 @@ from dataclasses import dataclass, field
 from transformers.modeling_utils import unwrap_model
 from accelerate import Accelerator, dispatch_model, infer_auto_device_map, load_checkpoint_and_dispatch
 from accelerate.utils import get_balanced_memory
-from peft import LoraConfig, PrefixTuningConfig, IA3Config, PromptTuningConfig, TaskType, get_peft_model
+from peft import LoraConfig, PrefixTuningConfig, IA3Config, PromptTuningConfig, PromptEncoderConfig, TaskType, get_peft_model
 from tqdm import tqdm
 from mistral import MistralForCausalLM, StructuredAdapterConfig, AttentionAdapterConfig
 from transformers import (
@@ -85,6 +85,7 @@ class ScriptArguments:
     use_lora: Optional[bool] = field(default=False, metadata={"help": "Whether to add LoRA"})
     use_prefix: Optional[bool] = field(default=False, metadata={"help": "Whether to add Prefix Tuning"})
     use_ia3: Optional[bool] = field(default=False, metadata={"help": "Whether to add IA3"})
+    use_ptuning: Optional[bool] = field(default=False, metadata={"help": "Whether to add P-Tuning"})
     adapter_method: Optional[str] = field(default='lora', metadata={"help": "Adapter method to use", "choices": SUPPORTED_ADAPTER_METHODS})
     trust_remote_code: Optional[bool] = field(default=False, metadata={"help": "Enable `trust_remote_code`"})
     output_dir: Optional[str] = field(default="output", metadata={"help": "the output directory"})
@@ -100,8 +101,11 @@ class ScriptArguments:
     # Our defined arguments
     adapter_gate_type: Optional[str] = field(default='sigmoid', metadata={"choices": ['sigmoid', 'tanh']})
     pooling_method: Optional[str] = field(default='mean', metadata={"choices": ['mean', 'attention', 'last']})
-    injection_location: Optional[str] = field(default='attention', metadata={"choices": ['attention', 'fc']})
-    
+    injection_location: Optional[str] = field(default='attention', metadata={"choices": ['sa', 'mlp']})
+    adapter_type: Optional[str] = field(default='parallel', metadata={"choices": ['parallel', 'sequential']})
+    full_attention: Optional[bool] = field(default=False, metadata={"help": "Whether to use fully-connected attention"})
+    no_causal_attention: Optional[bool] = field(default=False, metadata={"help": "Whether to remove the extra layer of causal attention"})
+    no_gates: Optional[bool] = field(default=False, metadata={"help": "Whether to remove gate"})
     
 def peft_module_casting_to_f16(model):
     from peft.tuners.tuners_utils import BaseTunerLayer
@@ -142,8 +146,16 @@ def init_trainer(script_args: ScriptArguments,
     if script_args.adapter_method == 'attention':
         adapter_config = AttentionAdapterConfig(gate_type=script_args.adapter_gate_type)
     elif script_args.adapter_method == 'structured':
+        hierarchical_attention = (not script_args.full_attention)
+        causal_attention = (not script_args.no_causal_attention)
+        use_gates = (not script_args.no_gates)
         adapter_config = StructuredAdapterConfig(gate_type=script_args.adapter_gate_type,
-                                                 pooling_method=script_args.pooling_method)
+                                                 pooling_method=script_args.pooling_method,
+                                                 injection_location=script_args.injection_location,
+                                                 adapter_type=script_args.adapter_type,
+                                                 hierarchical_attention=hierarchical_attention,
+                                                 causal_attention=causal_attention,
+                                                 use_gates=use_gates)
     else:
         adapter_config = None
     
@@ -170,6 +182,7 @@ def init_trainer(script_args: ScriptArguments,
             num_transformer_submodules=1,
             num_attention_heads=model.config.num_attention_heads,
             num_layers=model.config.num_hidden_layers,
+            inference_mode=False
         )
         model = get_peft_model(model, peft_config)
     elif script_args.use_ia3:
@@ -178,6 +191,18 @@ def init_trainer(script_args: ScriptArguments,
             task_type=TaskType.CAUSAL_LM,
             target_modules=["q_proj", "v_proj", "down_proj"],
             feedforward_modules=["down_proj"],
+            inference_mode=False,
+        )
+        model = get_peft_model(model, peft_config)
+    elif script_args.use_ptuning:
+        peft_config = PromptEncoderConfig(
+            peft_type="P_TUNING",
+            task_type=TaskType.CAUSAL_LM,
+            num_virtual_tokens=100,
+            num_transformer_submodules=1,
+            num_layers=2,
+            encoder_reparameterization_type="MLP",
+            encoder_hidden_size=768,
         )
         model = get_peft_model(model, peft_config)
     else:
@@ -319,7 +344,7 @@ if __name__ == "__main__":
     data_collator = DataCollatorForSeq2Seq(tokenizer)
     
     stopping_criteria = StopSequenceRepeatCriteria(tokenizer=tokenizer,
-                                                   stop_sequences=['\n', '\r', '  '],
+                                                #    stop_sequences=['\n', '\r', '  '],
                                                    max_repeat=4)
 
     # Initialize the trainer
