@@ -32,7 +32,7 @@ from transformers import (
     StoppingCriteriaList,
     StoppingCriteria,
 )
-import evaluate
+from rouge_score import rouge_scorer, scoring
 from metrics import f1_score, exact_match_score, metric_max_over_ground_truths
 
 import numpy as np
@@ -101,11 +101,15 @@ class ScriptArguments:
     # Our defined arguments
     adapter_gate_type: Optional[str] = field(default='sigmoid', metadata={"choices": ['sigmoid', 'tanh']})
     pooling_method: Optional[str] = field(default='mean', metadata={"choices": ['mean', 'attention', 'last']})
-    injection_location: Optional[str] = field(default='attention', metadata={"choices": ['sa', 'mlp']})
+    injection_location: Optional[str] = field(default='attention', metadata={"choices": ['sa', 'mlp', 'both']})
     adapter_type: Optional[str] = field(default='parallel', metadata={"choices": ['parallel', 'sequential']})
     full_attention: Optional[bool] = field(default=False, metadata={"help": "Whether to use fully-connected attention"})
     no_causal_attention: Optional[bool] = field(default=False, metadata={"help": "Whether to remove the extra layer of causal attention"})
     no_gates: Optional[bool] = field(default=False, metadata={"help": "Whether to remove gate"})
+    adapter_hidden_size: Optional[int] = field(default=768, metadata={"help": "Hidden size of adapter"})
+    num_attention_heads: Optional[int] = field(default=12, metadata={"help": "Hidden size of adapter"})
+    num_layers: Optional[int] = field(default=4, metadata={"help": "Number of layers for adapter"})
+    use_last_layer: Optional[bool] = field(default=False, metadata={"help": "Hidden size of adapter"})
     
 def peft_module_casting_to_f16(model):
     from peft.tuners.tuners_utils import BaseTunerLayer
@@ -141,21 +145,27 @@ def init_trainer(script_args: ScriptArguments,
         quantization_config = None
         torch_dtype = torch.float16
     
-    
-    
     if script_args.adapter_method == 'attention':
         adapter_config = AttentionAdapterConfig(gate_type=script_args.adapter_gate_type)
     elif script_args.adapter_method == 'structured':
         hierarchical_attention = (not script_args.full_attention)
         causal_attention = (not script_args.no_causal_attention)
         use_gates = (not script_args.no_gates)
+        
+        final_layer = 32 if script_args.use_last_layer else 31
+        layers = list(range(max(0, final_layer - script_args.num_layers), final_layer))
+        assert script_args.adapter_hidden_size % script_args.num_attention_heads == 0, \
+               "Adapter hidden size not divisible by number of attention heads!"
         adapter_config = StructuredAdapterConfig(gate_type=script_args.adapter_gate_type,
                                                  pooling_method=script_args.pooling_method,
                                                  injection_location=script_args.injection_location,
                                                  adapter_type=script_args.adapter_type,
                                                  hierarchical_attention=hierarchical_attention,
                                                  causal_attention=causal_attention,
-                                                 use_gates=use_gates)
+                                                 use_gates=use_gates,
+                                                 hidden_size=script_args.adapter_hidden_size,
+                                                 num_attention_heads=script_args.num_attention_heads,
+                                                 layers=layers)
     else:
         adapter_config = None
     
@@ -169,6 +179,7 @@ def init_trainer(script_args: ScriptArguments,
         use_cache=False,
         adapter_config=adapter_config,
     )
+
     
     model.enable_input_require_grads()
     if script_args.use_lora:
@@ -297,7 +308,7 @@ if __name__ == "__main__":
     tokenizer = AutoTokenizer.from_pretrained(script_args.model_name, padding_side="left")
     tokenizer.pad_token_id = tokenizer.eos_token_id
     
-    rouge = evaluate.load('rouge')
+    scorer = rouge_scorer.RougeScorer(['rouge1', 'rouge2',  'rougeL', 'rougeLsum'], use_stemmer=False)
     def summarization_metrics(eval_preds):
         preds, labels = eval_preds
 
@@ -310,7 +321,15 @@ if __name__ == "__main__":
         # rougeLSum expects newline after each sentence
         decoded_preds = ["\n".join(nltk.sent_tokenize(pred.strip())) for pred in decoded_preds]
         decoded_labels = ["\n".join(nltk.sent_tokenize(label.strip())) for label in decoded_labels]
-        result = rouge.compute(predictions=decoded_preds, references=decoded_labels)
+        
+        aggregator = scoring.BootstrapAggregator()
+        result = {k: [] for k in scorer.rouge_types}
+        for label, pred in zip(decoded_labels, decoded_preds):
+            score = scorer.score(label, pred)
+            aggregator.add_scores(score)
+        result = aggregator.aggregate()
+        for key in result:
+            result[key] = result[key].mid.fmeasure
         return result
     
     def qa_metrics(eval_preds):
@@ -367,8 +386,8 @@ if __name__ == "__main__":
     if script_args.do_eval:
         test_dataset = dataset['test']
         # # Debugging
-        # from torch.utils.data import Subset
-        # test_dataset = Subset(test_dataset, list(range(10)))
+        from torch.utils.data import Subset
+        test_dataset = Subset(test_dataset, list(range(10)))
         
         
         if script_args.checkpoint_dir is None:

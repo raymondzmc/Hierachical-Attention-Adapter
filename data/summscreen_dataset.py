@@ -26,6 +26,7 @@ def get_preprocessed_summscreen(tokenizer, return_token_type_ids=False):
                 "labels": [-100] * len(dialogue_token_ids) + summary_token_ids,
                 "token_type_ids": token_type_ids + [-1] * len(summary_token_ids),
             }
+            
         else:
             dialogue = tokenizer.bos_token + "\n".join(example["Transcript"]) + "\nSummary:"
             dialogue_token_ids = tokenizer.encode(dialogue, add_special_tokens=False)

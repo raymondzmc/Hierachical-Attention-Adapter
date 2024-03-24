@@ -37,10 +37,10 @@ class StructuredAdapterConfig:
     gate_type: str = field(default='sigmoid')
     layers: List[int] = field(default_factory=lambda: [30, 29, 28, 27])
     use_gates: bool =  field(default=True)
-    injection_location: str = field(default='mlp', metadata={"choices": ['sa', 'mlp']})
+    injection_location: str = field(default='mlp', metadata={"choices": ['sa', 'mlp', 'both']})
     adapter_type: str  = field(default='parallel', metadata={"choices": ['parallel', 'sequential']})
     hierarchical_attention: bool = field(default=True)
-    causal_attention: bool =  field(default=True)
+    causal_attention: bool = field(default=True)
 
 @dataclass
 class AttentionAdapterConfig:
@@ -50,6 +50,12 @@ class AttentionAdapterConfig:
     dropout: float = field(default=0.1)
     use_gate: bool = field(default=True)
     gate_type: str = field(default='sigmoid')
+    layers: List[int] = field(default_factory=lambda: [30, 29, 28, 27])
+
+@dataclass
+class AttentionAdapterConfig:
+    hidden_size: int = field(default=768)
+    dropout: float = field(default=0.1)
     layers: List[int] = field(default_factory=lambda: [30, 29, 28, 27])
 
 

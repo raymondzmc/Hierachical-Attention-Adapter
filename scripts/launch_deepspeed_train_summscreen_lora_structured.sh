@@ -1,4 +1,4 @@
-export OUTPUT_DIR='output/mistral-summscreen-lora-structured'
+export OUTPUT_DIR='output/mistral-summscreen-lora-structured-new'
 mkdir -p $OUTPUT_DIR
 
 accelerate launch --config_file=./deepspeed_zero3.yaml \

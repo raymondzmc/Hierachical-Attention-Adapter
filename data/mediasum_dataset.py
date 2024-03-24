@@ -3,7 +3,6 @@ import pdb
 
 def get_preprocessed_mediasum(tokenizer, return_token_type_ids=False):
     dataset = datasets.load_dataset("ccdv/mediasum", trust_remote_code=True)
-    pdb.set_trace()
     
     # Default config uses RoBERTa seperator "</s>"
     turn_separator = '</s>'
@@ -18,7 +17,6 @@ def get_preprocessed_mediasum(tokenizer, return_token_type_ids=False):
         dialogue_turns = example['document'].split(turn_separator)
         if return_token_type_ids:
             dialogue_turns = [turn + '\n' for turn in dialogue_turns]
-            dialogue_turns = example["dialogue"].split(turn_separator)
             encoded_dialogue_turns = [tokenizer.encode(turn.strip(), add_special_tokens=False) for turn in dialogue_turns]
             dialogue_ids = [tokenizer.bos_token_id]
             token_type_ids = [0]
@@ -45,16 +43,20 @@ def get_preprocessed_mediasum(tokenizer, return_token_type_ids=False):
 
         return sample
     
-    dataset = dataset.filter(lambda x: len(x["document"].split(turn_separator)) > 1)
+    
+    dataset = dataset.filter(lambda x: len(x["document"].split(turn_separator)) > 1 and len(x["document"].split(turn_separator)) < 128, num_proc=64)
     dataset = dataset.map(preprocess_function, num_proc=64)
+    dataset['train'] = dataset['train'].filter(lambda x: len(x["input_ids"]) < 3000, num_proc=64)
 
     return dataset
 
 if __name__ == "__main__":
     from transformers import AutoTokenizer
     tokenizer = AutoTokenizer.from_pretrained("mistralai/Mistral-7B-v0.1")
-    dataset = get_preprocessed_mediasum(tokenizer)
+    dataset = get_preprocessed_mediasum(tokenizer, return_token_type_ids=True)
     print(f"Number of train examples: {len(dataset['train'])}")
-    print(f"Number of train examples: {len(dataset['train'])}, max sequence length: {max([len(x['input_ids']) for x in dataset['train']])}.")
-    print(f"Number of validation examples: {len(dataset['validation'])}, max sequence length: {max([len(x['input_ids']) for x in dataset['validation']])}.")
-    print(f"Number of test examples: {len(dataset['test'])}, max sequence length: {max([len(x['input_ids']) for x in dataset['test']])}.")
+    train_len = [len(x['input_ids']) for x in dataset['train']]
+    pdb.set_trace()
+    # print(f"Number of train examples: {len(dataset['train'])}, max sequence length: {max([len(x['input_ids']) for x in dataset['train']])}.")
+    # print(f"Number of validation examples: {len(dataset['validation'])}, max sequence length: {max([len(x['input_ids']) for x in dataset['validation']])}.")
+    # print(f"Number of test examples: {len(dataset['test'])}, max sequence length: {max([len(x['input_ids']) for x in dataset['test']])}.")

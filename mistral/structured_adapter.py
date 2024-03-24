@@ -15,12 +15,12 @@ class MistralStructuredAdapter(nn.Module):
         self.dropout = config.dropout
         self.layer_idx = layer_idx
         self.pooling_method = config.pooling_method
-        # self.causal_self_attention = config.causal_self_attention
         
         if self.pooling_method == "attention":
             self.turn_self_attention = DialogueTurnAttention(model_hidden_size, config.hidden_size)
         
         self.fc1 = nn.Linear(model_hidden_size, config.hidden_size)
+
         self.dialogue_self_attention = Attention(
             config.hidden_size,
             config.num_attention_heads,
@@ -29,14 +29,15 @@ class MistralStructuredAdapter(nn.Module):
         self.dialogue_self_attention_layer_norm = nn.LayerNorm(config.hidden_size)
         
         self.fc2 = nn.Linear(model_hidden_size, config.hidden_size)
-        self.summary_self_attention = Attention(
-            config.hidden_size,
-            config.num_attention_heads,
-            dropout=config.attention_dropout,
-            is_decoder=True,
-            is_causal=True,
-        )
-        self.summary_self_attention_layer_norm = nn.LayerNorm(config.hidden_size)
+        if config.causal_attention:
+            self.summary_self_attention = Attention(
+                config.hidden_size,
+                config.num_attention_heads,
+                dropout=config.attention_dropout,
+                is_decoder=True,
+                is_causal=True,
+            )
+            self.summary_self_attention_layer_norm = nn.LayerNorm(config.hidden_size)
         
         self.cross_attention = Attention(
             config.hidden_size,
@@ -109,9 +110,11 @@ class MistralStructuredAdapter(nn.Module):
                 sliding_window=4096)
 
             summary_hidden_states = self.fc2(summary_hidden_states)
-            summary_hidden_states = self.summary_self_attention(summary_hidden_states, attention_mask=causal_attention_mask)[0]
-            summary_hidden_states = nn.functional.dropout(summary_hidden_states, p=self.dropout, training=self.training)
-            summary_hidden_states = self.summary_self_attention_layer_norm(summary_hidden_states)
+            
+            if self.config.causal_attention:
+                summary_hidden_states = self.summary_self_attention(summary_hidden_states, attention_mask=causal_attention_mask)[0]
+                summary_hidden_states = nn.functional.dropout(summary_hidden_states, p=self.dropout, training=self.training)
+                summary_hidden_states = self.summary_self_attention_layer_norm(summary_hidden_states)
             
             # Summary cross-attention
             summary_hidden_states = self.cross_attention(summary_hidden_states, dialogue_hidden_states)[0]
@@ -124,14 +127,13 @@ class MistralStructuredAdapter(nn.Module):
             summary_hidden_states = self.fc4(summary_hidden_states)
             summary_hidden_states = nn.functional.dropout(summary_hidden_states, p=self.dropout, training=self.training)
             summary_hidden_states = self.final_layer_norm(summary_hidden_states).squeeze(0)
-            
-            if self.output_gate is not None:
-                if self.gate_type == 'sigmoid':
-                    gate = torch.sigmoid(self.output_gate(hidden_states[i]))
-                elif self.gate_type == 'tanh':
-                    gate = torch.tanh(self.output_gate(hidden_states[i]))
-                summary_hidden_states = gate * summary_hidden_states
-
-            output.append((summary_hidden_states.to(hidden_states.dtype), summary_mask))
+            output.append(summary_hidden_states)
         
-        return output
+        output = torch.stack(output)
+        if self.output_gate is not None:
+            if self.gate_type == 'sigmoid':
+                gates = torch.sigmoid(self.output_gate(hidden_states))
+            elif self.gate_type == 'tanh':
+                gates = torch.tanh(self.output_gate(hidden_states))
+            output = gates * output        
+        return output.to(hidden_states.dtype)
