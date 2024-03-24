@@ -47,8 +47,6 @@ from data import (
 from datasets import Dataset
 import pdb
 import nltk
-
-nltk.download('punkt')
 tqdm.pandas()
 
 SUPPORTED_DATASETS = ['samsum', 'summscreen', 'mediasum', 'friendsqa']
@@ -384,7 +382,7 @@ if __name__ == "__main__":
     data_collator = DataCollatorForSeq2Seq(tokenizer)
     
     stopping_criteria = StopSequenceRepeatCriteria(tokenizer=tokenizer,
-                                                #    stop_sequences=['\n', '\r', '  '],
+                                                   stop_sequences=['\n', '\r', '  '],
                                                    max_repeat=4)
 
     # Initialize the trainer
