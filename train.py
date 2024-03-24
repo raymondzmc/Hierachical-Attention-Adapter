@@ -93,7 +93,9 @@ class ScriptArguments:
     logging_steps: Optional[int] = field(default=5, metadata={"help": "the number of logging steps"})
     num_train_epochs: Optional[int] = field(default=3, metadata={"help": "the number of training epochs"})
     evaluation_strategy: Optional[str] = field(default='epoch', metadata={"help": "The evaluation strategy to adopt during training."})
+    evaluation_steps: Optional[float] = field(default=0.25)
     save_strategy: Optional[str] = field(default='epoch', metadata={"help": "The checkpoint save strategy to adopt during training."})
+    save_steps: Optional[float] = field(default=0.25)
     push_to_hub: Optional[bool] = field(default=False, metadata={"help": "Push the model to HF Hub"})
     hub_model_id: Optional[str] = field(default="mistral-7b-finetuned-summarization", metadata={"help": "The name of the model on HF Hub"})
     resume_from_checkpoint: Optional[str] = field(default=None, metadata={"help": "The path to folder with a valid checkpoint to load from."})
@@ -251,7 +253,9 @@ def init_trainer(script_args: ScriptArguments,
         num_train_epochs=script_args.num_train_epochs,
         report_to=script_args.report_to,
         save_strategy=script_args.save_strategy,
+        save_steps=script_args.save_steps,
         evaluation_strategy=script_args.evaluation_strategy,
+        evaluation_steps=script_args.evaluation_steps,
         push_to_hub=script_args.push_to_hub,
         hub_model_id=script_args.hub_model_id,
         fp16=True,
