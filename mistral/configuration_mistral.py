@@ -29,7 +29,7 @@ MISTRAL_PRETRAINED_CONFIG_ARCHIVE_MAP = {
 
 @dataclass
 class StructuredAdapterConfig:
-    pooling_method: str = field(default='mean')
+    pooling_method: str = field(default='last')
     hidden_size: int = field(default=768)
     num_attention_heads: int = field(default=12)
     attention_dropout: float = field(default=0.0)
