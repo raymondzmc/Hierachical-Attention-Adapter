@@ -1,6 +1,6 @@
 export OUTPUT_DIR='output/mistral-mediasum-lora'
 mkdir -p $OUTPUT_DIR
-CUDA_VISIBLE_DEVICES=4,5,6,7 accelerate launch --config_file=./deepspeed_zero3.yaml \
+CUDA_VISIBLE_DEVICES=4,5,6,7 accelerate launch  --master_port=29501 --config_file=./deepspeed_zero3.yaml \
  train.py --dataset_name mediasum  --use_lora \
          --num_train_epochs 1 --evaluation_strategy steps --save_strategy steps --batch_size 4 --gradient_accumulation_steps 4 \
          --gradient_checkpointing --learning_rate 1e-4 \
@@ -9,7 +9,7 @@ CUDA_VISIBLE_DEVICES=4,5,6,7 accelerate launch --config_file=./deepspeed_zero3.y
 
 export OUTPUT_DIR='output/mistral-mediasum-ia3'
 mkdir -p $OUTPUT_DIR
-CUDA_VISIBLE_DEVICES=4,5,6,7 accelerate launch --config_file=./deepspeed_zero3.yaml \
+CUDA_VISIBLE_DEVICES=4,5,6,7 accelerate launch --master_port=29501 --config_file=./deepspeed_zero3.yaml \
 train.py --dataset_name mediasum --use_ia3 \
          --num_train_epochs 1 --evaluation_strategy steps --save_strategy steps --batch_size 4 --gradient_accumulation_steps 4 \
          --eval_batch_size 4 --gradient_checkpointing --learning_rate 1e-4 \
