@@ -59,8 +59,8 @@ class AttentionAdapterConfig:
 class MLPAdapterConfig:
     hidden_size: int = field(default=768)
     layers: List[int] = field(default_factory=lambda: [30, 29, 28, 27])
-    injection_location: str = field(default='mlp', metadata={"choices": ['sa', 'mlp', 'both']})
-    adapter_type: str  = field(default='parallel', metadata={"choices": ['parallel', 'sequential']})
+    injection_location: str = field(default='both', metadata={"choices": ['sa', 'mlp', 'both']})
+    adapter_type: str  = field(default='sequential', metadata={"choices": ['parallel', 'sequential']})
 
 
 class MistralConfig(PretrainedConfig):

@@ -21,7 +21,7 @@ from accelerate import Accelerator, dispatch_model, infer_auto_device_map, load_
 from accelerate.utils import get_balanced_memory
 from peft import LoraConfig, PrefixTuningConfig, IA3Config, PromptTuningConfig, PromptEncoderConfig, TaskType, get_peft_model
 from tqdm import tqdm
-from mistral import MistralForCausalLM, StructuredAdapterConfig, AttentionAdapterConfig
+from mistral import MistralForCausalLM, StructuredAdapterConfig, AttentionAdapterConfig, MLPAdapterConfig
 from transformers import (
     AutoModelForCausalLM, 
     HfArgumentParser,
@@ -147,17 +147,28 @@ def init_trainer(script_args: ScriptArguments,
         quantization_config = None
         torch_dtype = torch.float16
     
+    # Number of layers to insert the adapters
+    final_layer = 32 if script_args.use_last_layer else 31
+    layers = list(range(max(0, final_layer - script_args.num_layers), final_layer))
+    
+    # Ensure adapter hidden size divides the number of attention heads
+    assert script_args.adapter_hidden_size % script_args.num_attention_heads == 0, \
+            "Adapter hidden size not divisible by number of attention heads!"
+
+    # Initialize adapter configs
     if script_args.adapter_method == 'attention':
-        adapter_config = AttentionAdapterConfig(gate_type=script_args.adapter_gate_type)
+        use_gates = (not script_args.no_gates)
+        adapter_config = AttentionAdapterConfig(adapter_type=script_args.adapter_type,
+                                                injection_location=script_args.injection_location,
+                                                use_gates=script_args.use_gates,
+                                                gate_type=script_args.adapter_gate_type,
+                                                hidden_size=script_args.adapter_hidden_size,
+                                                layers=layers,
+                                                num_attention_heads=script_args.num_attention_heads)
     elif script_args.adapter_method == 'structured':
         hierarchical_attention = (not script_args.full_attention)
         causal_attention = (not script_args.no_causal_attention)
         use_gates = (not script_args.no_gates)
-        
-        final_layer = 32 if script_args.use_last_layer else 31
-        layers = list(range(max(0, final_layer - script_args.num_layers), final_layer))
-        assert script_args.adapter_hidden_size % script_args.num_attention_heads == 0, \
-               "Adapter hidden size not divisible by number of attention heads!"
         adapter_config = StructuredAdapterConfig(gate_type=script_args.adapter_gate_type,
                                                  pooling_method=script_args.pooling_method,
                                                  injection_location=script_args.injection_location,
@@ -168,6 +179,11 @@ def init_trainer(script_args: ScriptArguments,
                                                  hidden_size=script_args.adapter_hidden_size,
                                                  num_attention_heads=script_args.num_attention_heads,
                                                  layers=layers)
+    elif script_args.adapter_method == 'mlp':
+        adapter_config = MLPAdapterConfig(adapter_type=script_args.adapter_type,
+                                          injection_location=script_args.injection_location,
+                                          hidden_size=script_args.adapter_hidden_size,
+                                          layers=layers)
     else:
         adapter_config = None
     
@@ -224,7 +240,8 @@ def init_trainer(script_args: ScriptArguments,
                 param.requires_grad = False
 
     if script_args.adapter_method is not None:
-        # peft_module_casting_to_f16(model)
+        # if script_args.adapter_method != 'structured':
+        #     peft_module_casting_to_f16(model)
         for name, param in model.model.named_parameters():
             if 'adapter' in name:
                 param.requires_grad = True
@@ -390,8 +407,8 @@ if __name__ == "__main__":
     if script_args.do_eval:
         test_dataset = dataset['test']
         # # Debugging
-        from torch.utils.data import Subset
-        test_dataset = Subset(test_dataset, list(range(10)))
+        # from torch.utils.data import Subset
+        # test_dataset = Subset(test_dataset, list(range(10)))
         
         
         if script_args.checkpoint_dir is None:
