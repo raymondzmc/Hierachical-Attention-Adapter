@@ -93,7 +93,7 @@ class ScriptArguments:
     logging_steps: Optional[int] = field(default=5, metadata={"help": "the number of logging steps"})
     num_train_epochs: Optional[int] = field(default=3, metadata={"help": "the number of training epochs"})
     evaluation_strategy: Optional[str] = field(default='epoch', metadata={"help": "The evaluation strategy to adopt during training."})
-    evaluation_steps: Optional[float] = field(default=0.25)
+    eval_steps: Optional[float] = field(default=0.25)
     save_strategy: Optional[str] = field(default='epoch', metadata={"help": "The checkpoint save strategy to adopt during training."})
     save_steps: Optional[float] = field(default=0.25)
     push_to_hub: Optional[bool] = field(default=False, metadata={"help": "Push the model to HF Hub"})
