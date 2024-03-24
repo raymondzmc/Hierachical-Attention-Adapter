@@ -3,9 +3,9 @@ import datasets
 import pdb
 
 def get_preprocessed_samsum(tokenizer, return_token_type_ids=False):
-    data_files = {'train': 'resources/SamSum/train.json',
-                  'validation': 'resources/SamSum/validation.json',
-                  'test': 'resources/SamSum/test.json'}
+    data_files = {'train': 'data/resources/SamSum/train.json',
+                  'validation': 'data/resources/SamSum/validation.json',
+                  'test': 'data/resources/SamSum/test.json'}
     dataset = datasets.load_dataset("json", data_files=data_files)
     turn_separator = "\n"
     def preprocess_function(example, split=None):
