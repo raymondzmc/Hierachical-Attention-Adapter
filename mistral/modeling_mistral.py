@@ -42,9 +42,10 @@ from transformers.utils import (
     logging,
     replace_return_docstrings,
 )
-from .configuration_mistral import MistralConfig, AttentionAdapterConfig, StructuredAdapterConfig
+from .configuration_mistral import MistralConfig, AttentionAdapterConfig, StructuredAdapterConfig, MLPAdapterConfig
 from .structured_adapter import MistralStructuredAdapter
 from .attention_adapter import AttentionAdapter
+from .mlp_adapter import MLPAdapter
 import pdb
 
 if is_flash_attn_2_available():
@@ -710,7 +711,7 @@ MISTRAL_ATTENTION_CLASSES = {
 
 
 class MistralDecoderLayer(nn.Module):
-    def __init__(self, config: MistralConfig, layer_idx: int, adapter_config: Optional[Union[AttentionAdapterConfig, StructuredAdapterConfig]] = None):
+    def __init__(self, config: MistralConfig, layer_idx: int, adapter_config: Optional[Union[AttentionAdapterConfig, StructuredAdapterConfig, MLPAdapterConfig]] = None):
         super().__init__()
         self.hidden_size = config.hidden_size
 
@@ -732,6 +733,10 @@ class MistralDecoderLayer(nn.Module):
                 if len(adapter_config.layers) and (layer_idx in adapter_config.layers):
                     self.adapter_method = 'structured'
                     self.adapter = MistralStructuredAdapter(self.hidden_size, adapter_config, layer_idx)
+            elif isinstance(adapter_config, MLPAdapterConfig):
+                if len(adapter_config.layers) and (layer_idx in adapter_config.layers):
+                    self.adapter_method = 'mlp'
+                    self.adapter = MLPAdapter(self.hidden_size, adapter_config, layer_idx)
             
 
     def forward(
@@ -1003,7 +1008,7 @@ class MistralModel(MistralPreTrainedModel):
 
     def __init__(self,
                  config: MistralConfig,
-                 adapter_config: Optional[Union[StructuredAdapterConfig, AttentionAdapterConfig]] = None):
+                 adapter_config: Optional[Union[StructuredAdapterConfig, AttentionAdapterConfig, MLPAdapterConfig]] = None):
         super().__init__(config)
         self.padding_idx = config.pad_token_id
         self.vocab_size = config.vocab_size
@@ -1179,7 +1184,7 @@ class MistralForCausalLM(MistralPreTrainedModel):
 
     def __init__(self, 
                  config: MistralConfig,
-                 adapter_config: Optional[Union[StructuredAdapterConfig, AttentionAdapterConfig]] = None):
+                 adapter_config: Optional[Union[StructuredAdapterConfig, AttentionAdapterConfig, MLPAdapterConfig]] = None):
         super().__init__(config)
         self.model = MistralModel(config, adapter_config)
         self.vocab_size = config.vocab_size
@@ -1385,7 +1390,7 @@ class MistralForCausalLM(MistralPreTrainedModel):
 class MistralForSequenceClassification(MistralPreTrainedModel):
     def __init__(self,
                  config: MistralConfig,
-                 adapter_config: Optional[Union[StructuredAdapterConfig, AttentionAdapterConfig]] = None):
+                 adapter_config: Optional[Union[StructuredAdapterConfig, AttentionAdapterConfig, MLPAdapterConfig]] = None):
         super().__init__(config)
         self.num_labels = config.num_labels
         self.model = MistralModel(config)

@@ -49,14 +49,18 @@ class AttentionAdapterConfig:
     attention_dropout: float = field(default=0.0)
     dropout: float = field(default=0.1)
     use_gate: bool = field(default=True)
+    injection_location: str = field(default='mlp', metadata={"choices": ['sa', 'mlp', 'both']})
+    adapter_type: str  = field(default='parallel', metadata={"choices": ['parallel', 'sequential']})
     gate_type: str = field(default='sigmoid')
     layers: List[int] = field(default_factory=lambda: [30, 29, 28, 27])
 
+
 @dataclass
-class AttentionAdapterConfig:
+class MLPAdapterConfig:
     hidden_size: int = field(default=768)
-    dropout: float = field(default=0.1)
     layers: List[int] = field(default_factory=lambda: [30, 29, 28, 27])
+    injection_location: str = field(default='mlp', metadata={"choices": ['sa', 'mlp', 'both']})
+    adapter_type: str  = field(default='parallel', metadata={"choices": ['parallel', 'sequential']})
 
 
 class MistralConfig(PretrainedConfig):

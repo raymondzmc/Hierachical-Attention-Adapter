@@ -52,7 +52,7 @@ nltk.download('punkt')
 tqdm.pandas()
 
 SUPPORTED_DATASETS = ['samsum', 'summscreen', 'mediasum', 'friendsqa']
-SUPPORTED_ADAPTER_METHODS = ['attention', 'structured']
+SUPPORTED_ADAPTER_METHODS = ['attention', 'structured', 'mlp']
 
 # Define and parse arguments.
 @dataclass

@@ -26,6 +26,7 @@ _import_structure = {
         "MistralConfig",
         "StructuredAdapterConfig",
         "AttentionAdapterConfig",
+        "MLPAdapterConfig",
     ]
 }
 
@@ -50,6 +51,7 @@ if TYPE_CHECKING:
         MistralConfig,
         StructuredAdapterConfig,
         AttentionAdapterConfig,
+        MLPAdapterConfig,
     )
 
     try:
