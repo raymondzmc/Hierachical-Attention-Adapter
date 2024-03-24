@@ -800,7 +800,7 @@ class MistralDecoderLayer(nn.Module):
         
         # Add output for adapter sequential or parallel to self-attention sub-layer
         if adapter_output is not None and self.adapter_config.injection_location in ['sa', 'both']:
-            hidden_states += adapter_output
+            hidden_states = hidden_states + adapter_output
         
         hidden_states = residual + hidden_states
 
@@ -831,7 +831,7 @@ class MistralDecoderLayer(nn.Module):
         
         # Add output for adapter sequential or parallel to MLP sub-layer
         if adapter_output is not None and self.adapter_config.injection_location in ['mlp', 'both'] :
-            hidden_states += adapter_output
+            hidden_states = hidden_states + adapter_output
 
         hidden_states = residual + hidden_states
         
