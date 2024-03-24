@@ -3,7 +3,10 @@ import datasets
 import pdb
 
 def get_preprocessed_samsum(tokenizer, return_token_type_ids=False):
-    dataset = datasets.load_dataset("samsum")
+    data_files = {'train': 'resources/SamSum/train.json',
+                  'validation': 'resources/SamSum/validation.json',
+                  'test': 'resources/SamSum/test.json'}
+    dataset = datasets.load_dataset("json", data_files=data_files)
     turn_separator = "\n"
     def preprocess_function(example, split=None):
         if split != None:
