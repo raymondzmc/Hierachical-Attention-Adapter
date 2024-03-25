@@ -47,6 +47,7 @@ from data import (
 from datasets import Dataset
 import pdb
 import nltk
+from torch.utils.data import Subset
 tqdm.pandas()
 
 SUPPORTED_DATASETS = ['samsum', 'summscreen', 'mediasum', 'friendsqa']
@@ -110,6 +111,8 @@ class ScriptArguments:
     num_attention_heads: Optional[int] = field(default=12, metadata={"help": "Hidden size of adapter"})
     num_layers: Optional[int] = field(default=4, metadata={"help": "Number of layers for adapter"})
     use_last_layer: Optional[bool] = field(default=False, metadata={"help": "Hidden size of adapter"})
+    test_subset: Optional[int] = field(default=None, metadata={"help": "Subset test set"})
+    use_cached_results: Optional[bool] = field(default=False, metadata={"help": "Use cached results for evaluation."})
     
 def peft_module_casting_to_f16(model):
     from peft.tuners.tuners_utils import BaseTunerLayer
@@ -158,7 +161,7 @@ def init_trainer(script_args: ScriptArguments,
         use_gates = (not script_args.no_gates)
         adapter_config = AttentionAdapterConfig(adapter_type=script_args.adapter_type,
                                                 injection_location=script_args.injection_location,
-                                                use_gates=script_args.use_gates,
+                                                use_gates=use_gates,
                                                 gate_type=script_args.adapter_gate_type,
                                                 hidden_size=script_args.adapter_hidden_size,
                                                 layers=layers,
@@ -245,8 +248,9 @@ def init_trainer(script_args: ScriptArguments,
                 param.requires_grad = True
     model.print_trainable_parameters()
     
+    max_new_tokens = 300 if script_args.dataset_name == 'summscreen' else 100
     generation_config = GenerationConfig(
-        max_new_tokens=100,
+        max_new_tokens=max_new_tokens,
         do_sample=False,
         num_beams=1,
         eos_token_id=tokenizer.eos_token_id,
@@ -404,9 +408,8 @@ if __name__ == "__main__":
     
     if script_args.do_eval:
         test_dataset = dataset['test']
-        # # Debugging
-        # from torch.utils.data import Subset
-        # test_dataset = Subset(test_dataset, list(range(10)))
+        if script_args.test_subset is not None:
+            test_dataset = Subset(test_dataset, list(range(script_args.test_subset)))
         
         
         if script_args.checkpoint_dir is None:
@@ -417,10 +420,10 @@ if __name__ == "__main__":
             checkpoint_paths = [os.path.join(script_args.output_dir, script_args.checkpoint_dir)]
             
         for checkpoint_path in checkpoint_paths:
-                
-            prediction_output_file = os.path.join(checkpoint_path, 'evaluation_output.pt')
             
-            if not os.path.isfile(prediction_output_file):
+            output_file = 'evaluation_output.pt' if script_args.test_subset is None else f"evaluation_output_{script_args.test_subset}.pt"
+            prediction_output_file = os.path.join(checkpoint_path, output_file)
+            if not os.path.isfile(prediction_output_file) or not script_args.use_cached_results:
                 
                 # Initialize a new trainer due to bug in loading checkpoint after `predict`
                 torch.cuda.empty_cache()
@@ -467,6 +470,12 @@ if __name__ == "__main__":
                         'dialogue': '\n'.join(example['Transcript']),
                         'summary': ' '.join(example['Recap']),
                         'prediction': predictions[idx],
+                    }
+                elif script_args.dataset_name == 'mediasum':
+                    result = {
+                        'dialogue': example['document'],
+                        'summary': example['summary'],
+                        'prediction': predictions[idx].split('Summary: ')[-1],
                     }
                 elif script_args.dataset_name == 'friendsqa':
                     prediction = predictions[idx]
