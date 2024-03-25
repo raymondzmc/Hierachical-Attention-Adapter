@@ -48,7 +48,7 @@ class AttentionAdapterConfig:
     num_attention_heads: int = field(default=12)
     attention_dropout: float = field(default=0.0)
     dropout: float = field(default=0.1)
-    use_gate: bool = field(default=True)
+    use_gates: bool = field(default=True)
     injection_location: str = field(default='mlp', metadata={"choices": ['sa', 'mlp', 'both']})
     adapter_type: str  = field(default='parallel', metadata={"choices": ['parallel', 'sequential']})
     gate_type: str = field(default='sigmoid')

@@ -102,7 +102,7 @@ class ScriptArguments:
     # Our defined arguments
     adapter_gate_type: Optional[str] = field(default='tanh', metadata={"choices": ['sigmoid', 'tanh']})
     pooling_method: Optional[str] = field(default='mean', metadata={"choices": ['mean', 'attention', 'last']})
-    injection_location: Optional[str] = field(default='attention', metadata={"choices": ['sa', 'mlp', 'both']})
+    injection_location: Optional[str] = field(default='mlp', metadata={"choices": ['sa', 'mlp', 'both']})
     adapter_type: Optional[str] = field(default='parallel', metadata={"choices": ['parallel', 'sequential']})
     full_attention: Optional[bool] = field(default=False, metadata={"help": "Whether to use fully-connected attention"})
     causal_attention: Optional[bool] = field(default=False, metadata={"help": "Whether to remove the extra layer of causal attention"})

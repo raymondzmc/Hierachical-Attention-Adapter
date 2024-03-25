@@ -66,9 +66,10 @@ class MistralStructuredAdapter(nn.Module):
         self.gradient_checkpointing = True
     
     def forward(self, hidden_states: torch.Tensor, token_type_ids: torch.LongTensor):
+        old_hidden = hidden_states.clone()
         batch_size = hidden_states.shape[0]
-
         hidden_states = self.down_proj(hidden_states)
+
         # Create turn embeddings by aggregating hidden states by their token_type_ids
         output = []
         for i in range(batch_size):
@@ -89,7 +90,10 @@ class MistralStructuredAdapter(nn.Module):
                 elif self.pooling_method == 'mean':
                     dialogue_hidden_states = torch.stack([hidden_states[i, mask].mean(dim=0) for mask in turn_masks]).unsqueeze(0)
                 elif self.pooling_method == 'last':
-                    dialogue_hidden_states = torch.stack([hidden_states[i, mask][-1] for mask in turn_masks]).unsqueeze(0)
+                    try:
+                        dialogue_hidden_states = torch.stack([hidden_states[i, mask][-1] for mask in turn_masks]).unsqueeze(0)
+                    except:
+                        pdb.set_trace()
             else:
                 dialogue_hidden_states = hidden_states[i, token_type_ids[i] != -1].unsqueeze(0)
 

@@ -320,7 +320,7 @@ class Seq2SeqTrainer(Trainer):
             #     pad_len = token_type_ids.shape[-1] + self.model.generation_config.max_new_tokens
             # token_type_ids = self._pad_tensors_to_max_len(token_type_ids, pad_len, -1)
 
-        generated_tokens = self.model.generate(input_ids=input_ids, attention_mask=attention_mask, use_cache=True, **gen_kwargs)
+        generated_tokens = self.model.generate(input_ids=input_ids, attention_mask=attention_mask, use_cache=False, **gen_kwargs)
 
         generated_tokens = generated_tokens[:, max_length:]
         # Temporary hack to ensure the generation config is not initialized for each iteration of the evaluation loop

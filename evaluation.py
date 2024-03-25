@@ -19,10 +19,11 @@ def main(args):
         raise FileNotFoundError(f"Cannot find \"prediction_results.json\" in {args.checkpoint_dir}")
     
     predictions = json.load(open(prediction_file))
-    if args.subset:
-        predictions = predictions[:200]
-    rouge = evaluate.load('rouge')
+    if args.subset is not None:
+        predictions = predictions[:args.subset]
+    
     # bartscore = evaluate.load("bartscore", model_type="distilbert-base-uncased")
+    rouge = evaluate.load('rouge')
     bart= BARTScorer(device='cuda:1', checkpoint='facebook/bart-large-cnn')
     rouge = rouge_scorer.RougeScorer(['rouge1', 'rouge2',  'rougeL'], use_stemmer=False)
     

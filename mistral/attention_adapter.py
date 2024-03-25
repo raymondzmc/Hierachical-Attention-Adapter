@@ -26,7 +26,7 @@ class AttentionAdapter(nn.Module):
         self.fc3 = nn.Linear(config.hidden_size, model_hidden_size)
         self.final_layer_norm = nn.LayerNorm(model_hidden_size)
         
-        if config.use_gate:
+        if config.use_gates:
             # self.output_gate = nn.Parameter(torch.zeros((model_hidden_size)), requires_grad=True)
             self.gate_type = config.gate_type
             self.output_gate = nn.Sequential(nn.Linear(model_hidden_size, 256),
