@@ -29,9 +29,9 @@ class AttentionAdapter(nn.Module):
         if config.use_gates:
             # self.output_gate = nn.Parameter(torch.zeros((model_hidden_size)), requires_grad=True)
             self.gate_type = config.gate_type
-            self.output_gate = nn.Sequential(nn.Linear(model_hidden_size, 256),
+            self.output_gate = nn.Sequential(nn.Linear(model_hidden_size, config.hidden_size),
                                              nn.SiLU(),
-                                             nn.Linear(256, 1))
+                                             nn.Linear(config.hidden_size, model_hidden_size))
         else:
             self.output_gate = None
         

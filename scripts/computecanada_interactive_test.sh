@@ -1,0 +1,1 @@
+salloc --time=2:0:0 --gpus-per-node=a100:4  --cpus-per-task=16 --mem=256G
