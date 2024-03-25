@@ -46,7 +46,7 @@ def get_preprocessed_summscreen(tokenizer, return_token_type_ids=False):
 if __name__ == "__main__":
     from transformers import AutoTokenizer
     tokenizer = AutoTokenizer.from_pretrained("mistralai/Mistral-7B-v0.1")
-    dataset = get_preprocessed_summscreen(tokenizer)
+    dataset = get_preprocessed_summscreen(tokenizer, return_token_type_ids=True)
     print(f"Number of train examples: {len(dataset['train'])}")
     print(f"Number of train examples: {len(dataset['train'])}, max sequence length: {max([len(x['input_ids']) for x in dataset['train']])}.")
     print(f"Number of validation examples: {len(dataset['validation'])}, max sequence length: {max([len(x['input_ids']) for x in dataset['validation']])}.")

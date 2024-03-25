@@ -100,12 +100,12 @@ class ScriptArguments:
     resume_from_checkpoint: Optional[str] = field(default=None, metadata={"help": "The path to folder with a valid checkpoint to load from."})
     
     # Our defined arguments
-    adapter_gate_type: Optional[str] = field(default='sigmoid', metadata={"choices": ['sigmoid', 'tanh']})
+    adapter_gate_type: Optional[str] = field(default='tanh', metadata={"choices": ['sigmoid', 'tanh']})
     pooling_method: Optional[str] = field(default='mean', metadata={"choices": ['mean', 'attention', 'last']})
     injection_location: Optional[str] = field(default='attention', metadata={"choices": ['sa', 'mlp', 'both']})
     adapter_type: Optional[str] = field(default='parallel', metadata={"choices": ['parallel', 'sequential']})
     full_attention: Optional[bool] = field(default=False, metadata={"help": "Whether to use fully-connected attention"})
-    no_causal_attention: Optional[bool] = field(default=False, metadata={"help": "Whether to remove the extra layer of causal attention"})
+    causal_attention: Optional[bool] = field(default=False, metadata={"help": "Whether to remove the extra layer of causal attention"})
     no_gates: Optional[bool] = field(default=False, metadata={"help": "Whether to remove gate"})
     adapter_hidden_size: Optional[int] = field(default=768, metadata={"help": "Hidden size of adapter"})
     num_attention_heads: Optional[int] = field(default=12, metadata={"help": "Hidden size of adapter"})
@@ -113,7 +113,7 @@ class ScriptArguments:
     use_last_layer: Optional[bool] = field(default=False, metadata={"help": "Hidden size of adapter"})
     test_subset: Optional[int] = field(default=None, metadata={"help": "Subset test set"})
     use_cached_results: Optional[bool] = field(default=False, metadata={"help": "Use cached results for evaluation."})
-    
+
 def peft_module_casting_to_f16(model):
     from peft.tuners.tuners_utils import BaseTunerLayer
 
@@ -168,14 +168,13 @@ def init_trainer(script_args: ScriptArguments,
                                                 num_attention_heads=script_args.num_attention_heads)
     elif script_args.adapter_method == 'structured':
         hierarchical_attention = (not script_args.full_attention)
-        causal_attention = (not script_args.no_causal_attention)
         use_gates = (not script_args.no_gates)
         adapter_config = StructuredAdapterConfig(gate_type=script_args.adapter_gate_type,
                                                  pooling_method=script_args.pooling_method,
                                                  injection_location=script_args.injection_location,
                                                  adapter_type=script_args.adapter_type,
                                                  hierarchical_attention=hierarchical_attention,
-                                                 causal_attention=causal_attention,
+                                                 causal_attention=script_args.causal_attention,
                                                  use_gates=use_gates,
                                                  hidden_size=script_args.adapter_hidden_size,
                                                  num_attention_heads=script_args.num_attention_heads,

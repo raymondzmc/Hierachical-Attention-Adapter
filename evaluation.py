@@ -5,6 +5,7 @@ import argparse
 import evaluate
 import numpy as np
 from bart_score import BARTScorer
+from rouge_score import rouge_scorer
 
 
 import pdb
@@ -18,17 +19,28 @@ def main(args):
         raise FileNotFoundError(f"Cannot find \"prediction_results.json\" in {args.checkpoint_dir}")
     
     predictions = json.load(open(prediction_file))
+    if args.subset:
+        predictions = predictions[:200]
     rouge = evaluate.load('rouge')
     # bartscore = evaluate.load("bartscore", model_type="distilbert-base-uncased")
-    bart_scorer = BARTScorer(device='cuda:0', checkpoint='facebook/bart-large-cnn')
+    bart= BARTScorer(device='cuda:1', checkpoint='facebook/bart-large-cnn')
+    rouge = rouge_scorer.RougeScorer(['rouge1', 'rouge2',  'rougeL'], use_stemmer=False)
     
-    
-    sent_len = [len(nltk.sent_tokenize(pred['summary'])) for pred in predictions]
-    reference_sentences = ['\n'.join(nltk.sent_tokenize(pred['summary'])) for pred in predictions]
-    pred_sentences = ['\n'.join(nltk.sent_tokenize(pred['prediction'])[:sent_len[i]]) for i, pred in enumerate(predictions)]
-    bart_score = bart_scorer.score(reference_sentences, pred_sentences, batch_size=16)
+    # sent_len = [len(nltk.sent_tokenize(pred['summary'])) for pred in predictions]
+    reference_sentences = ['\n'.join(nltk.sent_tokenize(pred['summary'])) for i, pred in enumerate(predictions)]
+    pred_sentences = ['\n'.join(nltk.sent_tokenize(pred['prediction'])) for i, pred in enumerate(predictions)]
+    bart_score = bart.score(reference_sentences, pred_sentences, batch_size=16)
+    print(f"[BARTScore] {np.mean(bart_score)}")
         # pdb.set_trace()
-    print(rouge.compute(predictions=pred_sentences, references=reference_sentences))
+    rouge_scores = {k: [] for k in rouge.rouge_types}
+    for ref, pred in zip(reference_sentences, pred_sentences):
+        score = rouge.score(ref, pred)
+        for k, v in score.items():
+            rouge_scores[k].append(v.fmeasure)
+    for key in rouge_scores:
+        rouge_scores[key] = np.mean(rouge_scores[key])
+        print(f"{key}: {rouge_scores[key]}")
+    print(f"[ROUGE Average]: {np.mean(list(rouge_scores.values()))}")
     # precision, recall, f1 = 0, 0, 0
     # for i, pred in enumerate(predictions):
     #     reference_sentences = nltk.sent_tokenize(pred['summary'])
@@ -40,12 +52,13 @@ def main(args):
     #     precision += np.mean(bart_scores['precision'])
     #     recall += np.mean(bart_scores['recall'])
     #     f1 += np.mean(bart_scores['f1'])
-    print(f"[BARTScore] {np.mean(bart_score)}")
+    
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(prog='evaluatePredictions', description='Evaluate the prediction files from Mixtral output')
     parser.add_argument('--checkpoint_dir', type=str, required=True, default=None)
-    parser.add_argument('--num_sentences', type=int, default=4)
+    parser.add_argument('--num_sentences', type=int, default=None)
+    parser.add_argument('--subset', type=int, default=None)
     args = parser.parse_args()
 
     main(args)

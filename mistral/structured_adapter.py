@@ -17,9 +17,11 @@ class MistralStructuredAdapter(nn.Module):
         self.pooling_method = config.pooling_method
         
         if self.pooling_method == "attention":
-            self.turn_self_attention = DialogueTurnAttention(model_hidden_size, config.hidden_size)
+            self.turn_self_attention = DialogueTurnAttention(config.hidden_size, config.hidden_size)
         
-        self.fc1 = nn.Linear(model_hidden_size, config.hidden_size)
+        self.down_proj = nn.Linear(model_hidden_size, config.hidden_size)
+        
+        # self.fc1 = nn.Linear(model_hidden_size, config.hidden_size)
 
         self.dialogue_self_attention = Attention(
             config.hidden_size,
@@ -28,7 +30,6 @@ class MistralStructuredAdapter(nn.Module):
         )
         self.dialogue_self_attention_layer_norm = nn.LayerNorm(config.hidden_size)
         
-        self.fc2 = nn.Linear(model_hidden_size, config.hidden_size)
         if config.causal_attention:
             self.summary_self_attention = Attention(
                 config.hidden_size,
@@ -46,17 +47,18 @@ class MistralStructuredAdapter(nn.Module):
             is_decoder=True,
         )
         self.cross_attention_layer_norm = nn.LayerNorm(config.hidden_size)
-        self.fc3 = nn.Linear(config.hidden_size, config.hidden_size)
+        self.fc1 = nn.Linear(config.hidden_size, config.hidden_size)
         self.activation = nn.SiLU()
-        self.fc4 = nn.Linear(config.hidden_size, model_hidden_size)
+        self.fc2 = nn.Linear(config.hidden_size, model_hidden_size)
         self.final_layer_norm = nn.LayerNorm(model_hidden_size)
         
         if config.use_gates:
             # self.output_gate = nn.Parameter(torch.zeros((model_hidden_size)), requires_grad=True)
             self.gate_type = config.gate_type
-            self.output_gate = nn.Sequential(nn.Linear(model_hidden_size, 256),
-                                             nn.SiLU(),
-                                             nn.Linear(256, 1))
+            self.output_gate = nn.Sequential(
+                nn.Linear(config.hidden_size, config.hidden_size),
+                nn.SiLU(),
+                nn.Linear(config.hidden_size, model_hidden_size))
         else:
             self.output_gate = None
 
@@ -66,6 +68,7 @@ class MistralStructuredAdapter(nn.Module):
     def forward(self, hidden_states: torch.Tensor, token_type_ids: torch.LongTensor):
         batch_size = hidden_states.shape[0]
 
+        hidden_states = self.down_proj(hidden_states)
         # Create turn embeddings by aggregating hidden states by their token_type_ids
         output = []
         for i in range(batch_size):
@@ -91,7 +94,6 @@ class MistralStructuredAdapter(nn.Module):
                 dialogue_hidden_states = hidden_states[i, token_type_ids[i] != -1].unsqueeze(0)
 
             # Dialogue self-attention
-            dialogue_hidden_states = self.fc1(dialogue_hidden_states)
             dialogue_hidden_states = self.dialogue_self_attention(dialogue_hidden_states)[0]
             dialogue_hidden_states = nn.functional.dropout(dialogue_hidden_states, p=self.dropout, training=self.training)
             dialogue_hidden_states = self.dialogue_self_attention_layer_norm(dialogue_hidden_states)
@@ -101,17 +103,15 @@ class MistralStructuredAdapter(nn.Module):
             summary_hidden_states = hidden_states[i].unsqueeze(0)
             summary_len = summary_hidden_states.shape[1]
 
-            # Summary self-attention
-            causal_attention_mask = _prepare_4d_causal_attention_mask(
-                attention_mask=None,
-                input_shape=(1, summary_len),
-                inputs_embeds=summary_hidden_states,
-                past_key_values_length=0,
-                sliding_window=4096)
-
-            summary_hidden_states = self.fc2(summary_hidden_states)
             
+            # Summary self-attention
             if self.config.causal_attention:
+                causal_attention_mask = _prepare_4d_causal_attention_mask(
+                    attention_mask=None,
+                    input_shape=(1, summary_len),
+                    inputs_embeds=summary_hidden_states,
+                    past_key_values_length=0,
+                    sliding_window=4096)
                 summary_hidden_states = self.summary_self_attention(summary_hidden_states, attention_mask=causal_attention_mask)[0]
                 summary_hidden_states = nn.functional.dropout(summary_hidden_states, p=self.dropout, training=self.training)
                 summary_hidden_states = self.summary_self_attention_layer_norm(summary_hidden_states)
@@ -122,9 +122,9 @@ class MistralStructuredAdapter(nn.Module):
             summary_hidden_states = self.cross_attention_layer_norm(summary_hidden_states)
             
             # MLP
-            summary_hidden_states = self.fc3(summary_hidden_states)
+            summary_hidden_states = self.fc1(summary_hidden_states)
             summary_hidden_states = self.activation(summary_hidden_states)
-            summary_hidden_states = self.fc4(summary_hidden_states)
+            summary_hidden_states = self.fc2(summary_hidden_states)
             summary_hidden_states = nn.functional.dropout(summary_hidden_states, p=self.dropout, training=self.training)
             summary_hidden_states = self.final_layer_norm(summary_hidden_states).squeeze(0)
             output.append(summary_hidden_states)
