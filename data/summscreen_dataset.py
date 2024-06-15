@@ -2,8 +2,9 @@ import pdb
 import datasets
 
 
-def get_preprocessed_summscreen(tokenizer, return_token_type_ids=False):
-    dataset = datasets.load_dataset("YuanPJ/summ_screen", "tms")
+def get_preprocessed_summscreen(tokenizer, return_token_type_ids=False, test_only=False):
+    split = 'test' if test_only else None
+    dataset = datasets.load_dataset("YuanPJ/summ_screen", "tms", split=split)
     def preprocess_function(example):
         summary_token_ids = tokenizer.encode(" ".join(example['Recap']), add_special_tokens=False)
         if return_token_type_ids:
@@ -21,6 +22,7 @@ def get_preprocessed_summscreen(tokenizer, return_token_type_ids=False):
             dialogue_token_ids.extend(summary_prompt_ids)
             token_type_ids.extend(len(summary_prompt_ids) * [-1])
             sample = {
+                "id": example['File Name'],
                 "input_ids": dialogue_token_ids + summary_token_ids,
                 "attention_mask": [1] * (len(dialogue_token_ids) + len(summary_token_ids)),
                 "labels": [-100] * len(dialogue_token_ids) + summary_token_ids,
@@ -31,6 +33,7 @@ def get_preprocessed_summscreen(tokenizer, return_token_type_ids=False):
             dialogue = tokenizer.bos_token + "\n".join(example["Transcript"]) + "\nSummary:"
             dialogue_token_ids = tokenizer.encode(dialogue, add_special_tokens=False)
             sample = {
+                "id": example['File Name'],
                 "input_ids": dialogue_token_ids + summary_token_ids,
                 "attention_mask": [1] * (len(dialogue_token_ids) + len(summary_token_ids)),
                 "labels": [-100] * len(dialogue_token_ids) + summary_token_ids,

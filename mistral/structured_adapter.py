@@ -81,7 +81,6 @@ class MistralStructuredAdapter(nn.Module):
                 for uid in unique_ids:
                     mask = token_type_ids[i] == uid
                     turn_masks.append(mask)
-
                 turn_masks = torch.stack(turn_masks)
 
                 if self.pooling_method == 'attention':
@@ -100,7 +99,7 @@ class MistralStructuredAdapter(nn.Module):
             # Dialogue self-attention
             dialogue_hidden_states = self.dialogue_self_attention(dialogue_hidden_states)[0]
             dialogue_hidden_states = nn.functional.dropout(dialogue_hidden_states, p=self.dropout, training=self.training)
-            dialogue_hidden_states = self.dialogue_self_attention_layer_norm(dialogue_hidden_states)
+            # dialogue_hidden_states = self.dialogue_self_attention_layer_norm(dialogue_hidden_states)
             
 
             summary_mask = (token_type_ids[i] == -1)
@@ -118,20 +117,20 @@ class MistralStructuredAdapter(nn.Module):
                     sliding_window=4096)
                 summary_hidden_states = self.summary_self_attention(summary_hidden_states, attention_mask=causal_attention_mask)[0]
                 summary_hidden_states = nn.functional.dropout(summary_hidden_states, p=self.dropout, training=self.training)
-                summary_hidden_states = self.summary_self_attention_layer_norm(summary_hidden_states)
+                # summary_hidden_states = self.summary_self_attention_layer_norm(summary_hidden_states)
             
             # Summary cross-attention
             summary_hidden_states = self.cross_attention(summary_hidden_states, dialogue_hidden_states)[0]
             summary_hidden_states = nn.functional.dropout(summary_hidden_states, p=self.dropout, training=self.training)
-            summary_hidden_states = self.cross_attention_layer_norm(summary_hidden_states)
+            # summary_hidden_states = self.cross_attention_layer_norm(summary_hidden_states)
             
             # MLP
             summary_hidden_states = self.fc1(summary_hidden_states)
             summary_hidden_states = self.activation(summary_hidden_states)
             summary_hidden_states = self.fc2(summary_hidden_states)
             summary_hidden_states = nn.functional.dropout(summary_hidden_states, p=self.dropout, training=self.training)
-            summary_hidden_states = self.final_layer_norm(summary_hidden_states).squeeze(0)
-            output.append(summary_hidden_states)
+            # summary_hidden_states = self.final_layer_norm(summary_hidden_states).squeeze(0)
+            output.append(summary_hidden_states.squeeze(0))
         
         output = torch.stack(output)
         if self.output_gate is not None:

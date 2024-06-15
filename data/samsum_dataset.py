@@ -2,11 +2,13 @@ import copy
 import datasets
 import pdb
 
-def get_preprocessed_samsum(tokenizer, return_token_type_ids=False):
+def get_preprocessed_samsum(tokenizer, return_token_type_ids=False, test_only=False):
     data_files = {'train': 'data/resources/SamSum/train.json',
                   'validation': 'data/resources/SamSum/validation.json',
                   'test': 'data/resources/SamSum/test.json'}
-    dataset = datasets.load_dataset("json", data_files=data_files)
+
+    split = 'test' if test_only else None
+    dataset = datasets.load_dataset("json", data_files=data_files, split=split)
     turn_separator = "\n"
     def preprocess_function(example, split=None):
         if split != None:

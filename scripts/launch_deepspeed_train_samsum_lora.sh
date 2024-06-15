@@ -1,19 +1,30 @@
-export OUTPUT_DIR='output/mistral-samsum-lora'
+export OUTPUT_DIR='output/mistral-samsum-lora-r-16-alpha-8'
 mkdir -p $OUTPUT_DIR
+# accelerate launch --config_file=./deepspeed_zero3.yaml \
+# train.py --dataset_name samsum --use_lora --lora_r 16 --lora_alpha 8 \
+#          --num_train_epochs 3 --batch_size 4 --gradient_accumulation_steps 4 \
+#          --eval_batch_size 4 --gradient_checkpointing --learning_rate 1e-4 \
+#          --output_dir $OUTPUT_DIR --do_train >> "$OUTPUT_DIR/train_log.txt"
+# accelerate launch --num_processes 4 
+python inference.py --output_dir $OUTPUT_DIR
 
-# # Debugging only:
-CUDA_VISIBLE_DEVICES=0 python train.py \
-         --dataset_name samsum  --use_lora \
-         --num_train_epochs 3 --batch_size 4 --gradient_accumulation_steps 4 \
-         --gradient_checkpointing --learning_rate 2e-5 \
-         --output_dir $OUTPUT_DIR --do_train
 
-accelerate launch --config_file=./deepspeed_zero3.yaml \
-train.py --dataset_name samsum --use_lora \
-         --num_train_epochs 3 --batch_size 4 --gradient_accumulation_steps 4 \
-         --eval_batch_size 4 --gradient_checkpointing --learning_rate 2e-5 \
-         --output_dir $OUTPUT_DIR --do_train >> "$OUTPUT_DIR/train_log.txt"
+export OUTPUT_DIR='output/mistral-samsum-lora-r-32-alpha-8'
+mkdir -p $OUTPUT_DIR
+# accelerate launch --config_file=./deepspeed_zero3.yaml \
+# train.py --dataset_name samsum --use_lora --lora_r 32 --lora_alpha 8  \
+#          --num_train_epochs 3 --batch_size 4 --gradient_accumulation_steps 4 \
+#          --eval_batch_size 4 --gradient_checkpointing --learning_rate 1e-4 \
+#          --output_dir $OUTPUT_DIR --do_train >> "$OUTPUT_DIR/train_log.txt"
+# accelerate launch --num_processes 4 
+python inference.py --output_dir $OUTPUT_DIR
 
-CUDA_VISIBLE_DEVICES=0 python train.py --dataset_name samsum --use_lora \
-         --eval_batch_size 1 --output_dir $OUTPUT_DIR \
-         --do_eval >> "$OUTPUT_DIR/test_log.txt"
+export OUTPUT_DIR='output/mistral-samsum-lora-r-64-alpha-8'
+mkdir -p $OUTPUT_DIR
+# accelerate launch --config_file=./deepspeed_zero3.yaml \
+# train.py --dataset_name samsum --use_lora --lora_r 64 --lora_alpha 8 \
+#          --num_train_epochs 3 --batch_size 4 --gradient_accumulation_steps 4 \
+#          --eval_batch_size 4 --gradient_checkpointing --learning_rate 1e-4 \
+#          --output_dir $OUTPUT_DIR --do_train >> "$OUTPUT_DIR/train_log.txt"
+# accelerate launch --num_processes 4 
+python inference.py --output_dir $OUTPUT_DIR

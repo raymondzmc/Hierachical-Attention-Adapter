@@ -6,27 +6,28 @@ from datasets import DatasetDict, Dataset
 
 DATA_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'resources', 'FriendsQA')
 
-def load_friendsqa_data(data_path):
+def load_friendsqa_data(data_path, split=None):
     file_paths = {'train': os.path.join(data_path, 'friendsqa_trn.json'),
                   'validation': os.path.join(data_path, 'friendsqa_dev.json'),
                   'test': os.path.join(data_path, 'friendsqa_tst.json')}
-    data = {k: {'dialogue': [], 'question': [], 'answers': []} for k in file_paths.keys()}
-    for split, file_path in file_paths.items():
-        split_data = json.load(open(file_path))
-        for example in split_data['data']:
+    data = {k: {'dialogue': [], 'question': [], 'answers': []} for k in file_paths.keys() if (k == split or split is None)}
+    for subset, file_path in file_paths.items():
+        subset_data = json.load(open(file_path))
+        for example in subset_data['data']:
             assert len(example['paragraphs']) == 1, f"Example {example['title']} has more than one paragraphs!"
             paragraphs = example['paragraphs'][0]
             dialogue = [f"{', '.join(u['speakers'])}: {u['utterance']}" if u['speakers'][0] != '#NOTE#' else u['utterance'] 
                         for u in paragraphs['utterances:']]
             for question in paragraphs['qas']:
-                data[split]['dialogue'].append(dialogue)
-                data[split]['question'].append(question['question'])
-                data[split]['answers'].append([ans['answer_text'] for ans in question['answers']])
+                data[subset]['dialogue'].append(dialogue)
+                data[subset]['question'].append(question['question'])
+                data[subset]['answers'].append([ans['answer_text'] for ans in question['answers']])
     return data
 
-def get_preprocessed_friendsqa(tokenizer, return_token_type_ids=False):
+def get_preprocessed_friendsqa(tokenizer, return_token_type_ids=False, test_only=False):
     
-    data = load_friendsqa_data(DATA_PATH)
+    split = 'test' if test_only else None
+    data = load_friendsqa_data(DATA_PATH, split=split)
     dataset = DatasetDict({k: Dataset.from_dict(v) for k, v in data.items()})
     def preprocess_function(example):
         

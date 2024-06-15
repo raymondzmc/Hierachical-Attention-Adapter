@@ -19,7 +19,6 @@ from transformers.utils import (
     is_torch_available,
 )
 
-
 _import_structure = {
     "configuration_mistral": [
         "MISTRAL_PRETRAINED_CONFIG_ARCHIVE_MAP",
@@ -27,7 +26,8 @@ _import_structure = {
         "StructuredAdapterConfig",
         "AttentionAdapterConfig",
         "MLPAdapterConfig",
-    ]
+    ],
+    "init_model": ["init_mistral_model"]
 }
 
 
@@ -53,6 +53,7 @@ if TYPE_CHECKING:
         AttentionAdapterConfig,
         MLPAdapterConfig,
     )
+    from .init_model import init_mistral_model
 
     try:
         if not is_torch_available():

@@ -1,8 +1,9 @@
 import datasets
 import pdb
 
-def get_preprocessed_mediasum(tokenizer, return_token_type_ids=False):
-    dataset = datasets.load_dataset("ccdv/mediasum", trust_remote_code=True)
+def get_preprocessed_mediasum(tokenizer, return_token_type_ids=False, test_only=False):
+    split = 'test' if test_only else None
+    dataset = datasets.load_dataset("ccdv/mediasum", trust_remote_code=True, split=split)
     
     # Default config uses RoBERTa seperator "</s>"
     turn_separator = '</s>'

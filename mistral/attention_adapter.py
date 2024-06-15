@@ -45,13 +45,13 @@ class AttentionAdapter(nn.Module):
         hidden_states = self.attn(hidden_states)[0]
         hidden_states = nn.functional.dropout(hidden_states, p=self.dropout, training=self.training)
 
-        hidden_states = self.attention_layer_norm(hidden_states)
+        # hidden_states = self.attention_layer_norm(hidden_states)
         
-        hidden_states = self.fc2(hidden_states)
+        # hidden_states = self.fc2(hidden_states)
         hidden_states = self.activation(hidden_states)
         hidden_states = self.fc3(hidden_states)
         hidden_states = nn.functional.dropout(hidden_states, p=self.dropout, training=self.training)
-        hidden_states = self.final_layer_norm(hidden_states)
+        # hidden_states = self.final_layer_norm(hidden_states)
         
         if self.output_gate is not None:
             if self.gate_type == 'sigmoid':
