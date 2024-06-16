@@ -78,13 +78,13 @@ if __name__ == "__main__":
                     input_ids = torch.tensor(example['input_ids'])[labels == -100]
                     label_ids = torch.tensor(example['input_ids'])[labels != -100]
                     attention_mask = torch.tensor(example['attention_mask'])[:len(input_ids)]
-                    token_type_ids = torch.tensor(example['token_type_ids'])[:len(input_ids)]
+                    token_type_ids = torch.tensor(example['token_type_ids'])[:len(input_ids)] if return_token_type_ids else None
                     output = model.generate(input_ids=input_ids.to(device).unsqueeze(0),
                                             attention_mask=attention_mask.to(device).unsqueeze(0),
                                             max_new_tokens=500,
                                             do_sample=False,
-                                            pad_token_id=tokenizer.eos_token_id,
-                                            token_type_ids=token_type_ids.to(device).unsqueeze(0) if return_token_type_ids else None)
+                                            pad_token_id=tokenizer.eos_token_id)
+                                            # token_type_ids=token_type_ids.to(device).unsqueeze(0) if return_token_type_ids else None)
                     pred_ids = output.squeeze(0)[len(input_ids):]
                     ref_text = tokenizer.decode(label_ids, skip_special_tokens=True)
                     pred_text = tokenizer.decode(pred_ids, skip_special_tokens=True)
